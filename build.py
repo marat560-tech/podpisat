@@ -105,6 +105,7 @@ def main():
     if os.path.exists(OUT):
         shutil.rmtree(OUT)
     shutil.copytree(os.path.join(SRC, "static"), os.path.join(OUT, "static"))
+    shutil.copytree(os.path.join(SRC, "root"), OUT, dirs_exist_ok=True)  # файлы подтверждения для поисковиков
     os.makedirs(os.path.join(OUT, "files"))
     for name in os.listdir(FILES):
         if name != "help4x.json":
