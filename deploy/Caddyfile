@@ -18,6 +18,8 @@ xn--80ahmweccok4b0dm.xn--p1ai, www.xn--80ahmweccok4b0dm.xn--p1ai {
 	header @files Content-Disposition attachment
 	@assets path /static/*
 	header @assets Cache-Control "public, max-age=3600"
+	@pages not path /static/* /files/*
+	header @pages Cache-Control no-cache
 
 	handle_errors {
 		rewrite * /index.html
