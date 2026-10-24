@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card soon-box">
+  <div class="ico">{{ icon|safe }}</div>
+  <span class="badge">В разработке</span>
+  <h1 style="margin-top:10px">{{ page_title }}</h1>
+  <p class="lead" style="margin:0 auto">{{ lead }}</p>
+  <ul class="plan">
+  {% for item in plan %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <p class="muted small" style="margin-top:22px">Хотите быть среди первых, кто попробует? Скачайте <a href="/help4x">Help4x</a> и напишите нам — подключим вместе.</p>
+</div>
+<p class="small muted">А пока можно <a href="/sign">подписать файл</a> — это уже работает.</p>
+{% endblock %}

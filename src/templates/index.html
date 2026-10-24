@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <span class="pill">● Бесплатно, без регистрации</span>
+  <h1>Электронная подпись и ЕГАИС без лишних программ и подписок</h1>
+  <p class="lead">Подпишите документ прямо в браузере — Рутокеном или через КриптоПро. Без КриптоАРМ, без установки тяжёлых программ. Файл не покидает ваш компьютер.</p>
+  <div class="btns">
+    <a class="btn primary big" href="/sign">Подписать файл</a>
+    <a class="btn big" href="/help4x">Удалённая помощь</a>
+  </div>
+</section>
+
+<h2>Что здесь есть</h2>
+<div class="grid">
+  <a class="tile" href="/sign">
+    <span class="tag live">Работает</span>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 15l2 2 4-4"/></svg></div>
+    <h3>Подписать файл</h3>
+    <p>Любой документ — декларация, отчёт, договор. На выходе архив с файлом и подписью .sig, как у КриптоАРМ и СБИС.</p>
+  </a>
+  <a class="tile" href="/help4x">
+    <span class="tag live">Работает</span>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></svg></div>
+    <h3>Удалённая помощь Help4x</h3>
+    <p>Не получается подключить подпись или УТМ? Скачайте программу — поможем удалённо.</p>
+  </a>
+  <a class="tile" href="/egais">
+    <span class="tag soon">В разработке</span>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1 6a4 4 0 0 1-6 0z"/><path d="M12 13v8M8 21h8"/></svg></div>
+    <h3>ЕГАИС</h3>
+    <p>Приёмка накладных, остатки, списание с выбором марок. Работает с вашим УТМ.</p>
+  </a>
+  <a class="tile" href="/mercury">
+    <span class="tag soon">В разработке</span>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 7l2-3h12l2 3"/><path d="M9 13l2 2 4-4"/></svg></div>
+    <h3>Меркурий</h3>
+    <p>Гашение ветеринарных документов на молочку, мясо и рыбу — рядом с накладными ЕГАИС.</p>
+  </a>
+  <a class="tile" href="/reports">
+    <span class="tag soon">В разработке</span>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+    <h3>Алкогольная отчётность</h3>
+    <p>Декларации ФСРАР (формы 7 и 8) и ежемесячный отчёт в Госалкогольинспекцию РТ — с подписью в один клик.</p>
+  </a>
+</div>
+
+<h2>Почему это бесплатно</h2>
+<div class="facts">
+  <div class="fact"><b>Без пробных 30 дней</b>Что работает — работает бесплатно и без урезанных версий.</div>
+  <div class="fact"><b>Ваш файл остаётся у вас</b>Подпись создаётся в вашем браузере, документ никуда не отправляется.</div>
+  <div class="fact"><b>Платно — только руками</b>Если нужна помощь с установкой и настройкой — поможем за небольшие деньги.</div>
+</div>
+{% endblock %}

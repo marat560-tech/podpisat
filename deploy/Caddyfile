@@ -1,0 +1,33 @@
+# подписать.рф (punycode: xn--80ahmwecpj4g.xn--p1ai)
+# Caddy сам получает и продлевает сертификат HTTPS (Let's Encrypt).
+xn--80ahmwecpj4g.xn--p1ai, www.xn--80ahmwecpj4g.xn--p1ai {
+	@www host www.xn--80ahmwecpj4g.xn--p1ai
+	redir @www https://xn--80ahmwecpj4g.xn--p1ai{uri} permanent
+
+	root * C:\podpisat\site
+	encode zstd gzip
+	try_files {path} {path}.html
+	file_server
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+	@files path /files/*
+	header @files Content-Disposition attachment
+	@assets path /static/*
+	header @assets Cache-Control "public, max-age=3600"
+
+	handle_errors {
+		rewrite * /index.html
+		file_server
+	}
+
+	log {
+		output file C:\podpisat\logs\access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
