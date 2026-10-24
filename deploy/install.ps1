@@ -1,4 +1,4 @@
-# Установка / обновление сайта подписать.рф на Windows 10.
+# Установка / обновление сайта подписатьэцп.рф на Windows 10.
 # Запуск: PowerShell от имени администратора:
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Bundle C:\path\podpisat-site.zip
 param(
@@ -49,4 +49,4 @@ if (-not $svc) {
 }
 Start-Sleep 3
 Get-Service podpisat-web | Format-Table Name, Status -AutoSize
-Write-Host "Готово. Сайт: https://подписать.рф (после того как DNS укажет на этот сервер и проброшены порты 80/443)."
+Write-Host "Готово. Сайт: https://подписатьэцп.рф (после того как DNS укажет на этот сервер и проброшены порты 80/443)."

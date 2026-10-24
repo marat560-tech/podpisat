@@ -1,4 +1,4 @@
-"""Сборка статического сайта подписать.рф в папку site/.
+"""Сборка статического сайта подписатьэцп.рф в папку site/.
 
 python3 build.py
 """
@@ -92,7 +92,7 @@ def main():
                        description="Программа удалённой помощи Help4x: поможем настроить подпись, УТМ и плагины.",
                        h4x=help4x_info()),
         "about": dict(tpl="about.html", page_title="О проекте", active="",
-                      description="О проекте подписать.рф"),
+                      description="О проекте подписатьэцп.рф"),
     }
     for key, data in SOON.items():
         pages[key] = dict(tpl="soon.html", active=key, icon=ICONS[key],
