@@ -1,14 +1,26 @@
 # Установка / обновление сайта подписатьэцп.рф на Windows 10.
 # Запуск: PowerShell от имени администратора:
-#   powershell -ExecutionPolicy Bypass -File install.ps1 -Bundle C:\path\podpisat-site.zip
+#   powershell -ExecutionPolicy Bypass -File install.ps1                 (последний релиз с GitHub)
+#   powershell -ExecutionPolicy Bypass -File install.ps1 -Bundle X.zip  (из локального архива)
 param(
-  [Parameter(Mandatory = $true)][string]$Bundle,
-  [string]$Dir = "C:\podpisat"
+  [string]$Bundle = "",
+  [string]$Dir = "C:\podpisat",
+  [string]$Repo = "marat560-tech/podpisat"
 )
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = "Tls12"
 
 New-Item -ItemType Directory -Force $Dir, "$Dir\logs" | Out-Null
+
+if (-not $Bundle) {
+  Write-Host "==> Скачиваю последнюю сборку сайта из $Repo"
+  $rel = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest"
+  $asset = $rel.assets | Where-Object { $_.name -eq "podpisat-site.zip" } | Select-Object -First 1
+  if (-not $asset) { throw "В релизе $($rel.tag_name) нет podpisat-site.zip" }
+  $Bundle = Join-Path $Dir "podpisat-site.zip"
+  Invoke-WebRequest $asset.browser_download_url -OutFile $Bundle -UseBasicParsing
+  Write-Host "    релиз $($rel.tag_name)"
+}
 
 Write-Host "==> Распаковываю сайт"
 $tmp = Join-Path $env:TEMP ("podpisat-" + [guid]::NewGuid())

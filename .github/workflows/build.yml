@@ -1,0 +1,54 @@
+name: Build site
+
+# Собирает сайт и публикует архив podpisat-site.zip в релиз.
+# Сервер забирает последний релиз скриптом deploy/install.ps1.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HELP4X_REPO: marat560-tech/help4x-desk
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Get Help4x release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p files
+          tag=$(gh release list -R "$HELP4X_REPO" --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Help4x release: $tag"
+          gh release download "$tag" -R "$HELP4X_REPO" --pattern 'Help4x-*-x64.exe' --dir files
+          exe=$(ls files/Help4x-*-x64.exe | head -1 | xargs basename)
+          ver=$(echo "$exe" | sed -E 's/Help4x-([0-9.]+)-x64.exe/\1/')
+          curl -sSL -o "files/help4x-$ver-src.tar.gz" "https://github.com/$HELP4X_REPO/archive/refs/tags/$tag.tar.gz"
+          printf '{"version": "%s", "file": "%s", "source": "%s"}\n' "$ver" "$exe" "help4x-$ver-src.tar.gz" > files/help4x.json
+          ls -la files
+
+      - name: Build
+        run: |
+          pip install jinja2
+          python build.py
+          zip -qr podpisat-site.zip site deploy
+          ls -la podpisat-site.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: site-${{ github.run_number }}
+          name: Сайт, сборка ${{ github.run_number }}
+          make_latest: "true"
+          files: podpisat-site.zip
