@@ -8,7 +8,14 @@ param(
   [string]$Repo = "marat560-tech/podpisat"
 )
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = "Tls12"
+
+# Invoke-WebRequest в Windows PowerShell 5.1 бывает очень медленным и обрывается — качаем curl.exe (есть в Windows 10)
+function Get-File($Url, $Out) {
+  & curl.exe -sSfL --retry 3 --connect-timeout 20 -o $Out $Url
+  if ($LASTEXITCODE -ne 0) { throw "Не удалось скачать $Url (curl $LASTEXITCODE)" }
+}
 
 New-Item -ItemType Directory -Force $Dir, "$Dir\logs" | Out-Null
 
@@ -18,7 +25,7 @@ if (-not $Bundle) {
   $asset = $rel.assets | Where-Object { $_.name -eq "podpisat-site.zip" } | Select-Object -First 1
   if (-not $asset) { throw "В релизе $($rel.tag_name) нет podpisat-site.zip" }
   $Bundle = Join-Path $Dir "podpisat-site.zip"
-  Invoke-WebRequest $asset.browser_download_url -OutFile $Bundle -UseBasicParsing
+  Get-File $asset.browser_download_url $Bundle
   Write-Host "    релиз $($rel.tag_name)"
 }
 
@@ -32,15 +39,14 @@ Remove-Item $tmp -Recurse -Force
 
 Write-Host "==> КриптоПро: скачиваю cadesplugin_api.js с официального сайта"
 try {
-  Invoke-WebRequest "https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js" `
-    -OutFile "$Dir\site\static\vendor\cadesplugin_api.js" -UseBasicParsing
+  Get-File "https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js" "$Dir\site\static\vendor\cadesplugin_api.js"
 } catch { Write-Warning "Не удалось скачать cadesplugin_api.js: $_ (подпись через КриптоПро не будет работать)" }
 
 if (-not (Test-Path "$Dir\caddy.exe")) {
   Write-Host "==> Скачиваю Caddy"
   $rel = Invoke-RestMethod "https://api.github.com/repos/caddyserver/caddy/releases/latest"
   $asset = $rel.assets | Where-Object { $_.name -like "*_windows_amd64.zip" } | Select-Object -First 1
-  Invoke-WebRequest $asset.browser_download_url -OutFile "$Dir\caddy.zip" -UseBasicParsing
+  Get-File $asset.browser_download_url "$Dir\caddy.zip"
   Expand-Archive "$Dir\caddy.zip" "$Dir\caddy-tmp" -Force
   Copy-Item "$Dir\caddy-tmp\caddy.exe" "$Dir\caddy.exe" -Force
   Remove-Item "$Dir\caddy.zip", "$Dir\caddy-tmp" -Recurse -Force
