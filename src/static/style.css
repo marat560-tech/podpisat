@@ -142,3 +142,4 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   .step { grid-template-columns: 30px 1fr; gap: 10px; }
   .num { width: 30px; height: 30px; font-size: 14px; }
 }
+.price { margin-top: 8px; font-weight: 600; color: var(--accent); }
