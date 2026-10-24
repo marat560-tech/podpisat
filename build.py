@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "3"
+VERSION = "4"
 
 ICONS = {
     "egais": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1 6a4 4 0 0 1-6 0z"/><path d="M12 13v8M8 21h8"/></svg>',

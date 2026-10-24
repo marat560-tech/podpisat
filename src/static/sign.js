@@ -9,6 +9,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var state = { file: null, fileB64: null, certs: [], selected: null, rt: null, cp: false };
   var MAX_SIZE = 50 * 1024 * 1024;
+  var SLOW_MS = 15000;
 
   // ---------------------------------------------------------------- помощники
   function withTimeout(promise, ms) {
@@ -220,7 +221,7 @@
           });
         })
         .then(function () { return store.Close(); });
-    }).then(function () { return list; }).catch(function () { return list; });
+    }).then(function () { return list; });
   }
 
   function cpSign(cert) {
@@ -270,11 +271,13 @@
 
   function renderCerts() {
     var box = $('certs');
+    var notes = (state.certNotes || []).map(function (t) { return '<div class="note wait">' + t + '</div>'; }).join('');
     if (!state.certs.length) {
-      box.innerHTML = '<div class="note info">Подписей не найдено. Вставьте ключ и нажмите «Обновить список». Если ключ вставлен — проверьте плагины выше.</div>';
+      box.innerHTML = notes || (state.searching ? '' :
+        '<div class="note info">Подписей не найдено. Вставьте ключ и нажмите «Обновить список». Если ключ вставлен — проверьте плагины выше.</div>');
       return;
     }
-    box.innerHTML = state.certs.map(function (c, i) {
+    box.innerHTML = notes + state.certs.map(function (c, i) {
       var badge = c.src === 'rt' ? '<span class="badge rt">Рутокен</span>' : '<span class="badge cp">КриптоПро</span>';
       var sel = state.selected === c ? ' sel' : '';
       var bad = c.expired ? ' bad' : '';
@@ -292,18 +295,44 @@
     });
   }
 
+  // Каждый плагин опрашиваем отдельно: подписи показываем по мере появления,
+  // а если плагин молчит (обычно ждёт ответа в своём окне, спрятанном за браузером) — подсказываем.
   function refreshCerts() {
-    $('refresh').disabled = true;
-    $('cert-hint').textContent = 'Ищем подписи…';
-    return Promise.all([rtCertList(), cpCertList()]).then(function (r) {
-      state.certs = r[0].concat(r[1]);
+    var gen = state.refreshGen = (state.refreshGen || 0) + 1;
+    var found = { rt: [], cp: [] }, errs = {};
+    var st = { rt: state.rt ? 'wait' : 'off', cp: state.cp ? 'wait' : 'off' };
+
+    function update() {
+      if (gen !== state.refreshGen) return;
+      state.certs = found.rt.concat(found.cp);
       if (state.selected && state.certs.indexOf(state.selected) < 0) state.selected = null;
       var valid = state.certs.filter(function (c) { return !c.expired; });
       if (!state.selected && valid.length === 1) state.selected = valid[0];
+      state.searching = st.rt === 'wait' || st.rt === 'slow' || st.cp === 'wait' || st.cp === 'slow';
+      var notes = [];
+      if (st.rt === 'slow') notes.push('Рутокен Плагин долго не отвечает. Проверьте, что Рутокен вставлен, и нет ли окна плагина с вопросом о доступе — оно может прятаться за браузером.');
+      if (st.cp === 'slow') notes.push('КриптоПро долго не отвечает. Скорее всего, открыто окно «Подтверждение доступа» — оно может прятаться за браузером. Найдите его на панели задач и нажмите «Да», подписи появятся сами.');
+      if (errs.rt) notes.push(errs.rt);
+      if (errs.cp) notes.push(errs.cp);
+      state.certNotes = notes;
+      $('refresh').disabled = st.rt === 'wait' || st.cp === 'wait';
       renderCerts();
       updateSignButton();
-      $('cert-hint').textContent = state.certs.length ? 'Найдено подписей: ' + state.certs.length : 'Вставьте ключ и нажмите «Обновить список».';
-    }).finally(function () { $('refresh').disabled = false; });
+      $('cert-hint').textContent = state.searching ? 'Ищем подписи…'
+        : state.certs.length ? 'Найдено подписей: ' + state.certs.length : 'Вставьте ключ и нажмите «Обновить список».';
+    }
+
+    function run(key, list) {
+      if (st[key] === 'off') return Promise.resolve();
+      var slow = setTimeout(function () { if (st[key] === 'wait') { st[key] = 'slow'; update(); } }, SLOW_MS);
+      return list().then(function (l) { found[key] = l; st[key] = 'ok'; }, function (e) {
+        st[key] = 'err';
+        errs[key] = key === 'rt' ? rtErrorText(e) : cpErrorText(e);
+      }).then(function () { clearTimeout(slow); update(); });
+    }
+
+    update();
+    return Promise.all([run('rt', rtCertList), run('cp', cpCertList)]);
   }
 
   function setFile(file) {
