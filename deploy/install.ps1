@@ -30,7 +30,8 @@ if (-not $Bundle) {
 }
 
 Write-Host "==> Распаковываю сайт"
-$tmp = Join-Path $env:TEMP ("podpisat-" + [guid]::NewGuid())
+$tmp = Join-Path $Dir "tmp-extract"
+if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Expand-Archive -Path $Bundle -DestinationPath $tmp -Force
 if (Test-Path "$Dir\site") { Remove-Item "$Dir\site" -Recurse -Force }
 Copy-Item "$tmp\site" "$Dir\site" -Recurse
