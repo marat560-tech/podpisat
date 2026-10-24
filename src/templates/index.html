@@ -1,4 +1,14 @@
 {% extends "base.html" %}
+{% block head %}
+<script type="application/ld+json">{{ {
+  "@context": "https://schema.org",
+  "@graph": [
+    {"@type": "WebSite", "name": "подписатьэцп.рф", "url": site + "/", "inLanguage": "ru"},
+    {"@type": "Organization", "name": "подписатьэцп.рф", "url": site + "/", "logo": site + "/static/og.png",
+     "contactPoint": {"@type": "ContactPoint", "telephone": phone_tel, "contactType": "customer support", "areaServed": "RU", "availableLanguage": "Russian"}}
+  ]
+} | tojson }}</script>
+{% endblock %}
 {% block content %}
 <section class="hero">
   <span class="pill">● Бесплатно, без регистрации</span>

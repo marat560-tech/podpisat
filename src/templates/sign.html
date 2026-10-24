@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block head %}
+<script type="application/ld+json">{{ faq_ld | tojson }}</script>
+{% endblock %}
 {% block content %}
 <h1>Подписать файл</h1>
 <p class="lead">Отделённая подпись ГОСТ (CAdES-BES), как у КриптоАРМ и СБИС. Файл не покидает ваш компьютер — подпись создаётся прямо в браузере.</p>
@@ -64,6 +67,15 @@
 <div class="card">
   <h3>Что получится</h3>
   <p class="muted" style="margin:0">Архив <code>имя_файла.zip</code>, внутри — ваш исходный файл без изменений и файл подписи <code>имя_файлаSGN1.sig</code> (формат CMS, ГОСТ Р 34.10-2012). Такой архив принимают инспекции и системы, которые работают с файлами КриптоАРМ и СБИС.</p>
+</div>
+
+<div class="card">
+  <h3>Частые вопросы</h3>
+  <dl class="faq">
+  {% for q, ans in faq %}
+    <dt>{{ q }}</dt><dd>{{ ans }}</dd>
+  {% endfor %}
+  </dl>
 </div>
 
 <div class="card">

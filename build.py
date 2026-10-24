@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+from datetime import date
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -13,9 +14,10 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "7"
+VERSION = "8"
 PHONE = "+7 (843) 208-53-54"
 PHONE_TEL = "+78432085354"
+SITE = "https://xn--80ahmweccok4b0dm.xn--p1ai"  # подписатьэцп.рф
 
 ICONS = {
     "egais": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1 6a4 4 0 0 1-6 0z"/><path d="M12 13v8M8 21h8"/></svg>',
@@ -55,6 +57,27 @@ SOON = {
 }
 
 
+FAQ = [
+    ("Как подписать файл электронной подписью бесплатно?",
+     "Выберите файл на этой странице, выберите свою подпись (Рутокен или КриптоПро) и нажмите «Подписать». "
+     "Сайт бесплатный, регистрация не нужна — нужен только бесплатный плагин для браузера."),
+    ("Нужен ли КриптоАРМ, чтобы получить файл .sig?",
+     "Нет. Сайт делает такую же отделённую подпись .sig в формате CMS по ГОСТ Р 34.10-2012 и упаковывает её "
+     "в архив .zip вместе с исходным файлом — так же, как КриптоАРМ и СБИС."),
+    ("Подойдёт ли подпись, полученная в налоговой (ФНС)?",
+     "Да. Подпись из налоговой обычно записана на Рутокен ЭЦП 3.0 — для неё достаточно бесплатного Рутокен Плагина. "
+     "Подписи, которые работают через КриптоПро CSP, тоже подходят."),
+    ("Мой файл отправляется на сервер?",
+     "Нет. Файл читается и подписывается прямо в вашем браузере, на вашем компьютере. На сервер ничего не загружается."),
+]
+
+FAQ_LD = {
+    "@context": "https://schema.org", "@type": "FAQPage",
+    "mainEntity": [{"@type": "Question", "name": q,
+                    "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in FAQ],
+}
+
+
 def fmt_size(n):
     return f"{n / 1024 / 1024:.1f} МБ".replace(".", ",")
 
@@ -84,12 +107,13 @@ def main():
             shutil.copy2(os.path.join(FILES, name), os.path.join(OUT, "files", name))
 
     env = Environment(loader=FileSystemLoader(os.path.join(SRC, "templates")), autoescape=True)
-    common = dict(version=VERSION, phone=PHONE, phone_tel=PHONE_TEL)
+    common = dict(version=VERSION, phone=PHONE, phone_tel=PHONE_TEL, site=SITE)
     pages = {
         "index": dict(tpl="index.html", page_title="Электронная подпись и ЕГАИС бесплатно", active="",
                       description="Подписать файл электронной подписью в браузере — Рутокен и КриптоПро. ЕГАИС, Меркурий, алкогольная отчётность."),
-        "sign": dict(tpl="sign.html", page_title="Подписать файл", active="sign",
-                     description="Подписать файл электронной подписью ГОСТ в браузере: Рутокен Плагин или КриптоПро. Архив с подписью .sig, как у КриптоАРМ."),
+        "sign": dict(tpl="sign.html", page_title="Подписать файл ЭЦП онлайн бесплатно", active="sign",
+                     description="Подписать файл электронной подписью бесплатно прямо в браузере: Рутокен ЭЦП 3.0 из налоговой или КриптоПро. Отделённая подпись .sig и архив .zip, как у КриптоАРМ и СБИС. Без установки КриптоАРМ.",
+                     faq=FAQ, faq_ld=FAQ_LD),
         "help4x": dict(tpl="help4x.html", page_title="Удалённая помощь Help4x", active="help4x",
                        description="Программа удалённой помощи Help4x: поможем настроить подпись, УТМ и плагины.",
                        h4x=help4x_info()),
@@ -100,10 +124,22 @@ def main():
         pages[key] = dict(tpl="soon.html", active=key, icon=ICONS[key],
                           description=data["lead"], **data)
     for name, ctx in pages.items():
+        ctx["path"] = "/" if name == "index" else "/" + name
         html = env.get_template(ctx.pop("tpl")).render(**common, **ctx)
         with open(os.path.join(OUT, name + ".html"), "w", encoding="utf-8") as f:
             f.write(html)
+    write_seo(pages)
     print("Собрано в", OUT, "страниц:", len(pages))
+
+
+def write_seo(pages):
+    with open(os.path.join(OUT, "robots.txt"), "w", encoding="utf-8") as f:
+        f.write(f"User-agent: *\nDisallow: /files/\n\nSitemap: {SITE}/sitemap.xml\n")
+    today = date.today().isoformat()
+    urls = "".join(f"  <url><loc>{SITE}{ctx['path']}</loc><lastmod>{today}</lastmod></url>\n" for ctx in pages.values())
+    with open(os.path.join(OUT, "sitemap.xml"), "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls + "</urlset>\n")
 
 
 if __name__ == "__main__":
