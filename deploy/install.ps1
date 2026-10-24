@@ -1,4 +1,4 @@
-# Установка / обновление сайта подписатьэцп.рф на Windows 10.
+﻿# Установка / обновление сайта подписатьэцп.рф на Windows 10.
 # Запуск: PowerShell от имени администратора:
 #   powershell -ExecutionPolicy Bypass -File install.ps1                 (последний релиз с GitHub)
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Bundle X.zip  (из локального архива)
