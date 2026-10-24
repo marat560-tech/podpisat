@@ -13,7 +13,9 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "4"
+VERSION = "5"
+PHONE = "+7 (843) 208-53-54"
+PHONE_TEL = "+78432085354"
 
 ICONS = {
     "egais": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-1 6a4 4 0 0 1-6 0z"/><path d="M12 13v8M8 21h8"/></svg>',
@@ -82,7 +84,7 @@ def main():
             shutil.copy2(os.path.join(FILES, name), os.path.join(OUT, "files", name))
 
     env = Environment(loader=FileSystemLoader(os.path.join(SRC, "templates")), autoescape=True)
-    common = dict(version=VERSION)
+    common = dict(version=VERSION, phone=PHONE, phone_tel=PHONE_TEL)
     pages = {
         "index": dict(tpl="index.html", page_title="Электронная подпись и ЕГАИС бесплатно", active="",
                       description="Подписать файл электронной подписью в браузере — Рутокен и КриптоПро. ЕГАИС, Меркурий, алкогольная отчётность."),
