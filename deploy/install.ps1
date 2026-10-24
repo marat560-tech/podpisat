@@ -16,7 +16,7 @@ $ProgressPreference = "SilentlyContinue"
 
 # Invoke-WebRequest в Windows PowerShell 5.1 бывает очень медленным и обрывается — качаем curl.exe (есть в Windows 10)
 function Get-File($Url, $Out) {
-  & curl.exe -sSfL --retry 3 --connect-timeout 20 -o $Out $Url
+  & curl.exe -sSfL --retry 3 --connect-timeout 20 --max-time 900 -o $Out $Url
   if ($LASTEXITCODE -ne 0) { throw "Не удалось скачать $Url (curl $LASTEXITCODE)" }
 }
 
@@ -41,8 +41,10 @@ Write-Host "==> Распаковываю сайт"
 $tmp = Join-Path $Dir "tmp-extract"
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Expand-Archive -Path $Bundle -DestinationPath $tmp -Force
-if (Test-Path "$Dir\site") { Remove-Item "$Dir\site" -Recurse -Force }
-Copy-Item "$tmp\site" "$Dir\site" -Recurse
+# robocopy, а не удаление папки: Caddy может держать файл открытым, и Remove-Item на нём падает.
+# cadesplugin_api.js в архиве нет — его не трогаем.
+& robocopy.exe "$tmp\site" "$Dir\site" /MIR /XF cadesplugin_api.js /R:10 /W:3 /NFL /NDL /NJH /NJS /NP | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy не смог обновить сайт (код $LASTEXITCODE)" }
 $oldCaddy = if (Test-Path "$Dir\Caddyfile") { (Get-FileHash "$Dir\Caddyfile").Hash } else { "" }
 Copy-Item "$tmp\deploy\Caddyfile" "$Dir\Caddyfile" -Force
 $caddyChanged = (Get-FileHash "$Dir\Caddyfile").Hash -ne $oldCaddy
@@ -51,7 +53,8 @@ Remove-Item $tmp -Recurse -Force
 
 Write-Host "==> КриптоПро: скачиваю cadesplugin_api.js с официального сайта"
 try {
-  Get-File "https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js" "$Dir\site\static\vendor\cadesplugin_api.js"
+  Get-File "https://www.cryptopro.ru/sites/default/files/products/cades/cadesplugin_api.js" "$Dir\cadesplugin_api.js.new"
+  Move-Item "$Dir\cadesplugin_api.js.new" "$Dir\site\static\vendor\cadesplugin_api.js" -Force
 } catch { Write-Warning "Не удалось скачать cadesplugin_api.js: $_ (подпись через КриптоПро не будет работать)" }
 
 if (-not (Test-Path "$Dir\caddy.exe")) {
@@ -81,11 +84,12 @@ if (-not $svc) {
 }
 if ($tag) { Set-Content $tagFile $tag }
 
-if (-not $Auto -and -not (Get-ScheduledTask -TaskName podpisat-update -ErrorAction SilentlyContinue)) {
-  Write-Host "==> Регистрирую автообновление (каждые 5 минут)"
+if (-not $Auto) {
+  Write-Host "==> Автообновление: задача podpisat-update (каждые 5 минут)"
   $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Dir\install.ps1`" -Auto"
-  $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)
-  Register-ScheduledTask -TaskName podpisat-update -Action $action -Trigger $trigger -User SYSTEM -RunLevel Highest -Force | Out-Null
+  $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
+  $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15) -StartWhenAvailable
+  Register-ScheduledTask -TaskName podpisat-update -Action $action -Trigger $trigger -Settings $settings -User SYSTEM -RunLevel Highest -Force | Out-Null
 }
 Start-Sleep 3
 Get-Service podpisat-web | Format-Table Name, Status -AutoSize
