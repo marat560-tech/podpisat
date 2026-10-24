@@ -97,6 +97,10 @@
       var ver = plugin.version ? ' (версия ' + esc(plugin.version) + ')' : '';
       setPlug('plug-rt', true, 'Установлен' + ver + '.');
     }).catch(function (e) {
+      if (e && e.message === 'noext') {
+        setPlug('plug-rt', false, 'Нет расширения «Адаптер Рутокен Плагин» в браузере. <a href="https://chromewebstore.google.com/detail/ohedcglhbbfdgaogjhcclacoccbagkjg" target="_blank" rel="noopener">Установить расширение</a>');
+        return;
+      }
       var msg = e && e.message === 'noext'
         ? 'Нет расширения «Адаптер Рутокен Плагин» в браузере.'
         : e && e.message === 'noplugin'

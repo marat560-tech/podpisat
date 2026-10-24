@@ -120,6 +120,7 @@ a.tile:hover { border-color: var(--accent); transform: translateY(-1px); }
 .dot.ok { background: var(--ok); } .dot.err { background: var(--err); } .dot.wait { background: var(--wait); }
 
 ol.how { padding-left: 20px; } ol.how li { margin-bottom: 8px; }
+ol.how ol { list-style: disc; padding-left: 22px; margin: 6px 0; } ol.how ol li { margin-bottom: 4px; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 15px; }
 .kv dt { color: var(--ink-2); } .kv dd { margin: 0; word-break: break-all; }
 code, .mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; }

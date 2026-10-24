@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "5"
+VERSION = "6"
 PHONE = "+7 (843) 208-53-54"
 PHONE_TEL = "+78432085354"
 
