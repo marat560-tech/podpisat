@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block head %}
+<script type="application/ld+json">{{ faq_ld | tojson }}</script>
+{% endblock %}
+{% block content %}
+<h1>Проверить электронную подпись</h1>
+<p class="lead">Проверка прямо в браузере — без плагинов, без регистрации и без отправки файлов на сервер. Подходит подписанный PDF, файл с подписью .sig / .p7s или архив .zip от КриптоАРМ и СБИС.</p>
+
+<div class="card">
+  <label class="drop" id="drop">
+    <input type="file" id="file" multiple accept=".pdf,.sig,.p7s,.sgn,.zip,application/pdf,application/zip,application/pkcs7-signature,*/*">
+    <div><b>Выберите файлы для проверки</b><br><span class="muted small">PDF с подписью, или документ вместе с его .sig, или архив .zip — можно перетащить сразу всё</span></div>
+  </label>
+  <div id="status"></div>
+</div>
+
+<div id="results"></div>
+
+<div class="card">
+  <h3>Что проверяется</h3>
+  <ul class="how">
+    <li><b>Целостность</b> — документ не меняли после подписания ни на один байт.</li>
+    <li><b>Подпись</b> — сделана закрытым ключом именно того сертификата, что лежит в подписи (ГОСТ Р 34.10-2012, хэш ГОСТ Р 34.11-2012).</li>
+    <li><b>Срок действия</b> — сертификат действовал в момент подписания.</li>
+  </ul>
+  <p class="small muted" style="margin:0">Отзыв сертификата удостоверяющим центром на этой странице не проверяется — для этого нужен запрос к серверу УЦ. Если важно, проверьте сертификат также на <a href="https://www.gosuslugi.ru/pgu/eds" target="_blank" rel="noopener">Госуслугах</a>.</p>
+</div>
+
+<div class="card">
+  <h3>Частые вопросы</h3>
+  <dl class="faq">
+  {% for q, ans in faq %}
+    <dt>{{ q }}</dt><dd>{{ ans }}</dd>
+  {% endfor %}
+  </dl>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/jszip.min.js"></script>
+<script src="/static/vendor/gost/gostDigest.min.js"></script>
+<script src="/static/cmsverify.js?v={{ version }}"></script>
+<script src="/static/pdfinc.js?v={{ version }}"></script>
+<script src="/static/verify.js?v={{ version }}"></script>
+{% endblock %}

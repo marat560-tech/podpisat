@@ -22,4 +22,6 @@ must preserve in the footer of every user-visible page the author attribution:
 
 - `src/static/vendor/rutoken.min.js` — АО «Актив-софт», BSD-3-Clause (`rutoken.LICENSE.txt`)
 - `src/static/vendor/jszip.min.js` — Stuart Knightley и др., MIT (`jszip.LICENSE.md`)
+- `src/static/vendor/pdfjs/` — PDF.js, Mozilla Foundation, Apache-2.0 (`LICENSE`)
+- `src/static/vendor/gost/gostDigest.min.js` — хэш ГОСТ Р 34.11-2012, Р. Николаев, Apache-2.0 (`NOTICE.txt`)
 - `cadesplugin_api.js` — ООО «КРИПТО-ПРО», скачивается с официального сайта при установке, в репозиторий не входит

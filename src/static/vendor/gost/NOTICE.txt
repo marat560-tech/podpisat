@@ -1,0 +1,5 @@
+gostDigest.min.js — GOST R 34.11-94 / GOST R 34.11-2012 ("Streebog") hash.
+Copyright (c) 2014-2016, Rudolf Nickolaev. All rights reserved.
+Converted to JavaScript from https://www.streebog.net/ (Copyright (c) 2013, Alexey Degtyarev).
+Source: https://github.com/rudonick/crypto
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0

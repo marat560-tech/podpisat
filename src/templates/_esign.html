@@ -1,0 +1,31 @@
+{% macro plugins() %}
+<div class="card">
+  <h3>Плагины на этом компьютере</h3>
+  <div class="plugins">
+    <div class="plug" id="plug-rt"><b><span class="dot wait"></span>Рутокен Плагин</b><span class="st">Проверяем…</span></div>
+    <div class="plug" id="plug-cp"><b><span class="dot wait"></span>КриптоПро ЭЦП Browser plug-in</b><span class="st">Проверяем…</span></div>
+  </div>
+  <p class="small muted" style="margin:10px 0 0">Достаточно одного. Рутокен Плагин бесплатный и подходит для Рутокен ЭЦП 3.0 с подписью из налоговой. КриптоПро плагин нужен, если подпись работает через КриптоПро CSP. <a href="/sign#help">Не видно подписи?</a></p>
+</div>
+{% endmacro %}
+
+{% macro certs() %}
+<div class="row" style="margin-bottom:10px">
+  <button class="btn" id="refresh" type="button">Обновить список</button>
+  <span class="small muted" id="cert-hint">Вставьте ключ (Рутокен, флешку) и нажмите «Обновить список».</span>
+</div>
+<div class="certs" id="certs"></div>
+{% endmacro %}
+
+{% macro pin() %}
+<div class="field" id="pin-field" hidden>
+  <label for="pin">PIN-код Рутокена</label>
+  <input type="password" id="pin" autocomplete="off" inputmode="numeric" placeholder="PIN-код от ключа">
+</div>
+{% endmacro %}
+
+{% macro scripts(version) %}
+<script src="/static/vendor/rutoken.min.js"></script>
+<script src="/static/vendor/cadesplugin_api.js"></script>
+<script src="/static/esign.js?v={{ version }}"></script>
+{% endmacro %}

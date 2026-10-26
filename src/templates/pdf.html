@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "_esign.html" as e %}
+{% block head %}
+<script type="application/ld+json">{{ faq_ld | tojson }}</script>
+{% endblock %}
+{% block content %}
+<h1>Подписать PDF со штампом</h1>
+<p class="lead">Подпись встраивается в сам PDF (PAdES), а на странице появляется штамп по ГОСТ Р 7.0.97 — там, куда вы его поставите. Без надписей сервиса в штампе и без платных тарифов. Файл не покидает ваш компьютер.</p>
+
+{{ e.plugins() }}
+
+<div class="card steps">
+  <div class="step" id="st1">
+    <div class="num">1</div>
+    <div class="body">
+      <h3>Выберите PDF</h3>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="application/pdf,.pdf">
+        <div><b>Нажмите, чтобы выбрать PDF</b><br><span class="muted small">или перетащите его сюда</span></div>
+      </label>
+      <div class="file-chip" id="chip" hidden></div>
+      <div id="file-status"></div>
+    </div>
+  </div>
+
+  <div class="step off" id="st2">
+    <div class="num">2</div>
+    <div class="body">
+      <h3>Выберите подпись</h3>
+      {{ e.certs() }}
+    </div>
+  </div>
+
+  <div class="step off" id="st3">
+    <div class="num">3</div>
+    <div class="body">
+      <h3>Оформите штамп</h3>
+      <div class="stamp-setup">
+        <div class="stamp-preview" id="stamp-preview"></div>
+        <div class="stamp-opts">
+          <div class="opt-row" id="kinds">
+            <button type="button" class="chip-btn" data-kind="frame">Рамка</button>
+            <button type="button" class="chip-btn" data-kind="band">С шапкой</button>
+            <button type="button" class="chip-btn" data-kind="line">Строгий</button>
+            <button type="button" class="chip-btn" data-kind="round">Печать</button>
+          </div>
+          <div class="opt-row" id="colors"></div>
+          <div class="opt-row checks">
+            <label><input type="checkbox" id="o-org"> организация</label>
+            <label><input type="checkbox" id="o-title"> должность</label>
+            <label><input type="checkbox" id="o-date"> дата и время подписания</label>
+            <label><input type="checkbox" id="o-fill"> белый фон</label>
+          </div>
+          <div class="opt-row">
+            <label class="btn sm" for="logo">Логотип или герб…</label>
+            <input type="file" id="logo" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+            <button type="button" class="btn sm" id="logo-x" hidden>Убрать логотип</button>
+            <label class="small muted size">Размер <input type="range" id="o-size" min="60" max="160" step="5" value="100"></label>
+          </div>
+          <p class="small muted" style="margin:6px 0 0">Оформление запоминается для каждой подписи на этом компьютере.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step off" id="st4">
+    <div class="num">4</div>
+    <div class="body">
+      <h3>Поставьте штамп на страницу</h3>
+      <p class="small muted" style="margin:0 0 10px">Нажмите на страницу — штамп встанет в это место. Его можно перетащить мышкой, ✕ — убрать. Можно поставить на несколько страниц.</p>
+      <div class="row" style="margin-bottom:10px">
+        <button type="button" class="btn sm" id="place-last">На последнюю страницу</button>
+        <button type="button" class="btn sm" id="place-all">На каждую страницу</button>
+        <button type="button" class="btn sm" id="place-clear">Убрать все</button>
+        <label class="small"><input type="checkbox" id="invisible"> без штампа (невидимая подпись)</label>
+      </div>
+      <div class="viewer" id="viewer"></div>
+    </div>
+  </div>
+
+  <div class="step off" id="st5">
+    <div class="num">5</div>
+    <div class="body">
+      <h3>Подпишите</h3>
+      {{ e.pin() }}
+      <div class="row" style="margin-top:12px">
+        <button class="btn primary big" id="sign" type="button" disabled>Подписать PDF</button>
+      </div>
+      <div id="status"></div>
+      <div id="result" hidden>
+        <div class="note ok"><b>Готово!</b> PDF подписан, подпись и штамп внутри файла.</div>
+        <div class="row">
+          <a class="btn primary" id="dl-pdf" download>Скачать подписанный PDF</a>
+          <a class="btn" href="/verify">Проверить подпись</a>
+        </div>
+        <dl class="kv" style="margin-top:14px" id="sig-info"></dl>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Частые вопросы</h3>
+  <dl class="faq">
+  {% for q, ans in faq %}
+    <dt>{{ q }}</dt><dd>{{ ans }}</dd>
+  {% endfor %}
+  </dl>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/pdfjs/pdf.js"></script>
+{{ e.scripts(version) }}
+<script src="/static/pdfinc.js?v={{ version }}"></script>
+<script src="/static/stamp.js?v={{ version }}"></script>
+<script src="/static/pdfsign.js?v={{ version }}"></script>
+{% endblock %}
