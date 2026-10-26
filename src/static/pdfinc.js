@@ -219,6 +219,9 @@
     this.trailer = null;
     this.lastXrefOffset = 0;
     this.xrefIsStream = false;
+    // Смещения в PDF отсчитываются от «%PDF-»: если перед заголовком есть мусор,
+    // Acrobat и другие программы сдвигают все смещения на его длину — делаем так же.
+    this.base = 0;
   }
 
   Doc.prototype.parseAt = function (off, num) {
@@ -252,7 +255,7 @@
 
   Doc.prototype.rawObj = function (num) {
     var e = this.xref.get(num), r = null;
-    if (e && e.off != null) r = this.parseAt(e.off, num);
+    if (e && e.off != null) r = this.parseAt(e.off + this.base, num);
     if (!r && (!e || e.off != null)) r = this.findObjBySearch(num);
     return r;
   };
@@ -347,7 +350,7 @@
 
   Doc.prototype.readXrefAt = function (off, first) {
     var b = this.bytes, self = this;
-    var p = new Parser(b, off);
+    var p = new Parser(b, off + this.base);
     if (p.peekWord() === 'xref') {
       p.word();
       if (first) this.xrefIsStream = false;
@@ -369,7 +372,7 @@
       if (tr.T !== 'dict') throw PdfError('Повреждённый trailer');
       return Promise.resolve(tr);
     }
-    var r = this.parseAt(off);
+    var r = this.parseAt(off + this.base);
     if (!r || r.streamStart == null) throw PdfError('Повреждённая таблица xref');
     if (first) this.xrefIsStream = true;
     return this.streamData(r).then(function (data) {
@@ -404,7 +407,7 @@
     var re = /(\d+)\s+(\d+)\s+obj\b/g, m, xrefStreams = [];
     while ((m = re.exec(s))) {
       if (m.index > 0 && !/[\s\r\n]/.test(s.charAt(m.index - 1))) continue;
-      this.xref.set(+m[1], { off: m.index, gen: +m[2] });
+      this.xref.set(+m[1], { off: m.index - this.base, gen: +m[2] });
     }
     var ti = s.lastIndexOf('trailer');
     var chain = Promise.resolve();
@@ -415,7 +418,7 @@
     }
     // объекты из потоков объектов и trailer из xref-потоков
     this.xref.forEach(function (e, n) {
-      var r = self.parseAt(e.off, n);
+      var r = self.parseAt(e.off + self.base, n);
       if (!r || r.value.T !== 'dict') return;
       var type = r.value.m.get('Type');
       if (type && type.v === 'XRef') xrefStreams.push(r);
@@ -437,6 +440,7 @@
       var size = 0;
       self.xref.forEach(function (_, n) { if (n >= size) size = n + 1; });
       self.rebuiltSize = size;
+      self.rebuilt = true;
     });
   };
 
@@ -469,20 +473,21 @@
     var head = latin1(bytes, 0, Math.min(1024, bytes.length));
     if (head.indexOf('%PDF-') < 0) return Promise.reject(PdfError('Это не PDF-файл'));
     var doc = new Doc(bytes);
+    doc.base = Math.max(0, head.indexOf('%PDF-'));
     var tail = latin1(bytes, Math.max(0, bytes.length - 2048));
     var m = /startxref\s+(\d+)/g, last = null, mm;
     while ((mm = m.exec(tail))) last = mm;
     var pr;
     if (last) {
       doc.lastXrefOffset = +last[1];
-      pr = doc.readXrefChain(doc.lastXrefOffset).then(function () {
+      pr = Promise.resolve().then(function () { return doc.readXrefChain(doc.lastXrefOffset); }).then(function () {
         if (!doc.trailer || !doc.trailer.m.get('Root')) throw PdfError('нет Root');
       }).catch(function () { return doc.rebuild(); });
     } else {
       pr = doc.rebuild();
     }
     return pr.then(function () {
-      if (doc.trailer.m.get('Encrypt')) throw PdfError('PDF защищён паролем или шифрованием — такой файл подписать нельзя. Снимите защиту и попробуйте снова.');
+      if (doc.trailer.m.get('Encrypt')) throw PdfError('PDF защищён (зашифрован), такой файл подписать нельзя. Снимите защиту: откройте PDF в браузере, нажмите «Печать» и выберите «Сохранить как PDF» — получится обычный файл.');
       return doc.pageRefs();
     }).then(function (pages) {
       if (!pages.length) throw PdfError('В документе не найдено страниц');
@@ -663,7 +668,6 @@
 
       function withField(afd) {
         afd.m.set('SigFlags', num(3));
-        afd.m.delete('NeedAppearances');
         var fields = afd.m.get('Fields');
         if (fields && fields.T === 'ref') {
           return doc.resolve(fields).then(function (fa) {
@@ -688,7 +692,7 @@
       if (opts.reason) tail += ' /Reason ' + latin1(textStr(opts.reason).raw);
       if (opts.location) tail += ' /Location ' + latin1(textStr(opts.location).raw);
       if (opts.contact) tail += ' /ContactInfo ' + latin1(textStr(opts.contact).raw);
-      tail += ' /Prop_Build << /App << /Name /podpisatecp.rf >> >> >>';
+      tail += ' >>';
       objs.push({ n: sigNum, sig: { head: sigParts.join(''), holeLen: reserve * 2, tail: tail } });
 
       return build(doc, objs, nextNum);
@@ -722,7 +726,7 @@
 
     byNum.forEach(function (o) {
       var g = o.g || 0;
-      entries.push({ n: o.n, off: offset, g: g });
+      entries.push({ n: o.n, off: offset - doc.base, g: g });
       var head = o.n + ' ' + g + ' obj\n';
       var chunk;
       if (o.sig) {
@@ -740,22 +744,36 @@
       offset += chunk.length;
     });
 
+    // Файл восстанавливали перебором: старая таблица ссылок неверна, поэтому
+    // пишем полную таблицу (все объекты) и не ссылаемся на старую через /Prev.
+    if (doc.rebuilt) {
+      var mine = new Set(entries.map(function (e) { return e.n; }));
+      doc.xref.forEach(function (e, n) {
+        if (mine.has(n) || n === 0) return;
+        if (e.off != null) entries.push({ n: n, off: e.off, g: e.gen || 0 });
+        else if (e.stm != null) entries.push({ n: n, stm: e.stm, idx: e.idx });
+      });
+      entries.push({ n: 0, free: true });
+      if (!doc.xrefIsStream && entries.some(function (e) { return e.stm != null; })) doc.xrefIsStream = true;
+    }
     entries.sort(function (a, b) { return a.n - b.n; });
     var tr = doc.trailer.m;
     var trailerParts = {
       Root: tr.get('Root'), Info: tr.get('Info'), ID: tr.get('ID'),
-      Prev: doc.lastXrefOffset ? num(doc.lastXrefOffset) : null
+      Prev: doc.lastXrefOffset && !doc.rebuilt ? num(doc.lastXrefOffset) : null
     };
     var xrefOff = offset, xref;
     if (doc.xrefIsStream) {
       var xn = size++;
-      entries.push({ n: xn, off: xrefOff, g: 0 });
+      entries.push({ n: xn, off: xrefOff - doc.base, g: 0 });
       entries.sort(function (a, b) { return a.n - b.n; });
       var idx = [], data = [];
       groups(entries).forEach(function (gr) {
         idx.push(num(gr[0].n), num(gr.length));
         gr.forEach(function (e) {
-          data.push(1, (e.off >>> 24) & 255, (e.off >>> 16) & 255, (e.off >>> 8) & 255, e.off & 255, (e.g >> 8) & 255, e.g & 255);
+          if (e.free) data.push(0, 0, 0, 0, 0, 255, 255);
+          else if (e.stm != null) data.push(2, (e.stm >>> 24) & 255, (e.stm >>> 16) & 255, (e.stm >>> 8) & 255, e.stm & 255, (e.idx >> 8) & 255, e.idx & 255);
+          else data.push(1, (e.off >>> 24) & 255, (e.off >>> 16) & 255, (e.off >>> 8) & 255, e.off & 255, (e.g >> 8) & 255, e.g & 255);
         });
       });
       var bin = new Uint8Array(data);
@@ -764,17 +782,17 @@
         Root: trailerParts.Root, Info: trailerParts.Info, ID: trailerParts.ID, Prev: trailerParts.Prev,
         Length: num(bin.length)
       });
-      xref = concat([ascii(xn + ' 0 obj\n' + ser(d) + '\nstream\n'), bin, ascii('\nendstream\nendobj\nstartxref\n' + xrefOff + '\n%%EOF\n')]);
+      xref = concat([ascii(xn + ' 0 obj\n' + ser(d) + '\nstream\n'), bin, ascii('\nendstream\nendobj\nstartxref\n' + (xrefOff - doc.base) + '\n%%EOF\n')]);
     } else {
       var s = 'xref\n';
       groups(entries).forEach(function (gr) {
         s += gr[0].n + ' ' + gr.length + '\n';
         gr.forEach(function (e) {
-          s += ('0000000000' + e.off).slice(-10) + ' ' + ('00000' + e.g).slice(-5) + ' n\r\n';
+          s += e.free ? '0000000000 65535 f\r\n' : ('0000000000' + e.off).slice(-10) + ' ' + ('00000' + e.g).slice(-5) + ' n\r\n';
         });
       });
       var td = dict({ Size: num(size), Root: trailerParts.Root, Info: trailerParts.Info, ID: trailerParts.ID, Prev: trailerParts.Prev });
-      s += 'trailer\n' + ser(td) + '\nstartxref\n' + xrefOff + '\n%%EOF\n';
+      s += 'trailer\n' + ser(td) + '\nstartxref\n' + (xrefOff - doc.base) + '\n%%EOF\n';
       xref = ascii(s);
     }
     parts.push(xref);

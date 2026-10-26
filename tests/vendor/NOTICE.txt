@@ -1,0 +1,5 @@
+gostRandom, gostCipher, gostDigest, gostSign (*.min.js) — GOST library used only by tests to create test keys and signatures.
+Copyright (c) 2014-2016, Rudolf Nickolaev. All rights reserved.
+Converted to JavaScript from https://www.streebog.net/ (Copyright (c) 2013, Alexey Degtyarev).
+Source: https://github.com/rudonick/crypto
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
