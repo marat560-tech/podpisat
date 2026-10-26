@@ -123,16 +123,23 @@
           if (st.pdf) st.pdf.destroy();
           st.pdf = pdf;
           st.placements = [];
-          $('chip').hidden = false;
-          $('chip').innerHTML = '📄 <div><b>' + esc(file.name) + '</b><div class="small muted">' + fmtSize(file.size) + ' · страниц: ' + pdf.numPages +
-            ' · <a href="#" id="change">выбрать другой</a></div></div>';
-          $('drop').hidden = true;
+          $('chip').innerHTML = '<b>' + esc(file.name) + '</b><span class="small muted">' + fmtSize(file.size) + ' · страниц: ' + pdf.numPages +
+            ' · <a href="#" id="change">другой файл</a></span>';
+          $('start').hidden = true;
+          $('ws').hidden = false;
+          document.body.classList.add('ws-open');
+          status('file-status', '', '');
           $('change').addEventListener('click', function (e) {
-            e.preventDefault(); $('file').value = ''; $('drop').hidden = false; $('chip').hidden = true;
+            e.preventDefault(); $('file').value = '';
+            $('start').hidden = false; $('ws').hidden = true;
+            document.body.classList.remove('ws-open');
             st.file = null; $('viewer').innerHTML = ''; st.placements = []; update();
           });
-          status('file-status', 'err', inc.locked
-            ? 'Автор документа запретил любые изменения после своей подписи. Новая подпись сделает прежнюю недействительной.' : '');
+          $('ws-hint').className = 'ws-hint' + (inc.locked ? ' err' : '');
+          $('ws-hint').textContent = inc.locked
+            ? 'Внимание: автор документа запретил изменения после своей подписи — новая подпись сделает прежнюю недействительной.'
+            : 'Нажмите на страницу, чтобы поставить штамп. Перетащите, чтобы сдвинуть, ✕ — убрать.';
+          window.scrollTo({ top: 0 });
           ESign.ensureCerts();
           return buildViewer();
         });
@@ -268,14 +275,15 @@
 
   // ---------------------------------------------------------------- подпись
   function update() {
-    var c = ESign.selected(), has = !!st.file;
-    enable('st2', has);
-    enable('st3', has && !$('invisible').checked);
-    enable('st4', has);
-    var ready = has && c && !c.expired && (st.placements.length || $('invisible').checked);
+    var c = ESign.selected(), has = !!st.file, inv = $('invisible').checked;
+    $('stamp-panel').classList.toggle('dim', inv);
+    $('viewer').classList.toggle('no-place', inv);
+    var ready = has && c && !c.expired && (st.placements.length || inv);
     $('sign').disabled = !ready;
-    enable('st5', !!(has && c && !c.expired));
-    if (has && c && !st.placements.length && !$('invisible').checked) {
+    $('sign').textContent = st.placements.length > 1 ? 'Подписать PDF (штампов: ' + st.placements.length + ')' : 'Подписать PDF';
+    if (has && !c) {
+      status('status', 'info', 'Выберите подпись в пункте 1.');
+    } else if (has && c && !st.placements.length && !inv) {
       status('status', 'info', 'Поставьте штамп хотя бы на одну страницу или отметьте «без штампа».');
     } else if (!$('status').querySelector('.err')) {
       status('status', '', '');
@@ -410,6 +418,8 @@
     $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('sign').disabled) doSign(); });
 
     loadStyle(null);
+    // файл, выбранный на главной
+    Handoff.take().then(function (files) { if (files[0]) openFile(files[0]); });
     ESign.start({ onSelect: function (c) { loadStyle(c).then(update); } });
   });
 })();

@@ -1,58 +1,53 @@
 {% extends "base.html" %}
 {% import "_esign.html" as e %}
+{% import "_art.html" as art %}
 {% block head %}
 <script type="application/ld+json">{{ faq_ld | tojson }}</script>
 {% endblock %}
 {% block content %}
-<h1>Подписать файл</h1>
-<p class="lead">Отделённая подпись ГОСТ (CAdES-BES), как у КриптоАРМ и СБИС. Можно подписать сразу несколько файлов — PIN вводится один раз. Файлы не покидают ваш компьютер.</p>
+<div class="page-head">
+  <h1>Подписать файл</h1>
+  <p class="lead">Отделённая подпись .sig, как у КриптоАРМ и СБИС. Можно сразу несколько файлов — PIN вводится один раз. Файлы не покидают ваш компьютер.</p>
+</div>
 
-{{ e.plugins() }}
-
-<div class="card steps">
-  <div class="step" id="st1">
-    <div class="num">1</div>
-    <div class="body">
-      <h3>Выберите файлы</h3>
-      <label class="drop" id="drop">
-        <input type="file" id="file" multiple>
-        <div><b>Нажмите, чтобы выбрать файл</b><br><span class="muted small">или перетащите сюда — можно сразу несколько</span></div>
-      </label>
-      <div class="files" id="files" hidden></div>
-    </div>
-  </div>
-
-  <div class="step off" id="st2">
-    <div class="num">2</div>
-    <div class="body">
-      <h3>Выберите подпись</h3>
-      {{ e.certs() }}
-    </div>
-  </div>
-
-  <div class="step off" id="st3">
-    <div class="num">3</div>
-    <div class="body">
-      <h3>Подпишите</h3>
-      {{ e.pin() }}
-      <div class="row" style="margin-top:12px">
-        <button class="btn primary big" id="sign" type="button" disabled>Подписать</button>
+<div class="ws ws-files">
+  <div class="ws-main">
+    <label class="drop hero-drop" id="drop">
+      <input type="file" id="file" multiple>
+      <div class="hero-drop-in">
+        <svg class="drop-ico" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="6" width="32" height="42" rx="4" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2.5"/><path d="M20 18h16M20 25h16M20 32h9" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><circle cx="45" cy="46" r="12" fill="var(--accent)"/><path d="M45 40v12M39 46h12" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+        <div>
+          <b class="big-label">Выберите файлы</b>
+          <span class="muted">или перетащите сюда — можно сразу несколько</span>
+        </div>
       </div>
+    </label>
+    <div class="files" id="files" hidden></div>
+    <p class="small muted pdf-tip" id="pdf-tip" hidden>📌 Для PDF можно сделать подпись <b>со штампом прямо на странице</b> — <a href="/pdf">подписать PDF со штампом</a>.</p>
+  </div>
+
+  <aside class="ws-side">
+    <section class="panel">
+      <h3><span class="n">1</span> Подпись</h3>
+      {{ e.plugins() }}
+      {{ e.certs() }}
+    </section>
+    <section class="panel">
+      <h3><span class="n">2</span> Подписать</h3>
+      {{ e.pin() }}
+      <button class="btn primary big wide" id="sign" type="button" disabled>Подписать</button>
       <div id="status"></div>
       <div id="result" hidden>
         <div class="note ok" id="result-title"><b>Готово!</b></div>
-        <div class="row" id="result-main"></div>
+        <div class="stack" id="result-main"></div>
         <div class="results" id="result-list"></div>
-        <dl class="kv" style="margin-top:14px" id="sig-info"></dl>
+        <dl class="kv small" style="margin-top:12px" id="sig-info"></dl>
       </div>
-    </div>
-  </div>
+    </section>
+  </aside>
 </div>
 
-<div class="card">
-  <h3>Нужна подпись с видимым штампом в PDF?</h3>
-  <p class="muted" style="margin:0">Для PDF есть <a href="/pdf">подпись со штампом прямо на странице</a> — оттиск по ГОСТ Р 7.0.97, ставится мышкой в любое место. А получить и <a href="/verify">проверить</a> подписанный файл можно здесь же.</p>
-</div>
+{{ art.how('sign') }}
 
 <div class="card">
   <h3>Что получится</h3>

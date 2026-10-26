@@ -1,0 +1,49 @@
+{# Иллюстрации сайта: свои рисунки в SVG и настоящие штампы, нарисованные stamp.js #}
+
+{% macro doc_with_stamp(kind='frame', cls='') %}
+<div class="art-doc {{ cls }}" aria-hidden="true">
+  <svg viewBox="0 0 210 270" class="art-page">
+    <rect x="1" y="1" width="208" height="268" rx="6" fill="#fff" stroke="#dcdad1"/>
+    <rect x="22" y="24" width="90" height="9" rx="2" fill="#1f5f4a" opacity=".85"/>
+    <rect x="22" y="40" width="58" height="5" rx="2" fill="#c9cdc6"/>
+    <g fill="#e1e3dc">
+      <rect x="22" y="62" width="166" height="5" rx="2"/><rect x="22" y="73" width="150" height="5" rx="2"/>
+      <rect x="22" y="84" width="160" height="5" rx="2"/><rect x="22" y="95" width="120" height="5" rx="2"/>
+      <rect x="22" y="114" width="166" height="5" rx="2"/><rect x="22" y="125" width="140" height="5" rx="2"/>
+      <rect x="22" y="136" width="158" height="5" rx="2"/><rect x="22" y="147" width="96" height="5" rx="2"/>
+      <rect x="22" y="166" width="70" height="5" rx="2"/>
+    </g>
+  </svg>
+  <img class="art-stamp" src="/static/img/stamp-{{ kind }}.png" alt="">
+</div>
+{% endmacro %}
+
+{% macro how(mode='pdf') %}
+<div class="how3">
+  <div class="how-step">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="10" y="6" width="24" height="32" rx="3" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2"/><path d="M16 16h12M16 22h12M16 28h7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="34" r="9" fill="var(--accent)"/><path d="M34 30v8M30 34h8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <div><b>1. Выберите {{ 'PDF' if mode == 'pdf' else 'файлы' }}</b><span>{{ 'Откроется прямо в браузере, никуда не загружается.' if mode == 'pdf' else 'Один или сразу несколько — любые форматы.' }}</span></div>
+  </div>
+  <div class="how-step">
+    {% if mode == 'pdf' %}
+    <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="6" width="28" height="36" rx="3" fill="#fff" stroke="var(--line)" stroke-width="2"/><rect x="16" y="26" width="26" height="14" rx="3" fill="#fff" stroke="#1d4f9c" stroke-width="2"/><path d="M20 31h18M20 35h12" stroke="#1d4f9c" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div><b>2. Поставьте штамп</b><span>Нажмите на нужное место страницы. Можно на несколько страниц.</span></div>
+    {% else %}
+    <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="14" width="30" height="18" rx="7" fill="#c8312b"/><rect x="36" y="18" width="8" height="10" rx="1.5" fill="#b9bec4"/><circle cx="15" cy="23" r="3" fill="#ffd9d6"/></svg>
+    <div><b>2. Выберите подпись</b><span>Рутокен из налоговой или ключ КриптоПро. PIN — один раз на все файлы.</span></div>
+    {% endif %}
+  </div>
+  <div class="how-step">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2"/><path d="M24 15v15M18 25l6 6 6-6" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+    <div><b>3. Скачайте</b><span>{{ 'Подписанный PDF — подпись и штамп внутри.' if mode == 'pdf' else 'Архив .zip с файлом и подписью .sig, как у КриптоАРМ и СБИС.' }}</span></div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro gallery() %}
+<div class="gallery">
+  {% for k, t in [('frame', 'Рамка'), ('band', 'С шапкой'), ('line', 'Строгий'), ('round', 'Печать')] %}
+  <figure><img src="/static/img/stamp-{{ k }}.png" alt="Штамп электронной подписи — стиль «{{ t }}»" loading="lazy"><figcaption>{{ t }}</figcaption></figure>
+  {% endfor %}
+</div>
+{% endmacro %}

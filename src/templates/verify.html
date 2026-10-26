@@ -3,16 +3,22 @@
 <script type="application/ld+json">{{ faq_ld | tojson }}</script>
 {% endblock %}
 {% block content %}
+<div class="page-head">
 <h1>Проверить электронную подпись</h1>
 <p class="lead">Проверка прямо в браузере — без плагинов, без регистрации и без отправки файлов на сервер. Подходит подписанный PDF, файл с подписью .sig / .p7s или архив .zip от КриптоАРМ и СБИС.</p>
-
-<div class="card">
-  <label class="drop" id="drop">
-    <input type="file" id="file" multiple accept=".pdf,.sig,.p7s,.sgn,.zip,application/pdf,application/zip,application/pkcs7-signature,*/*">
-    <div><b>Выберите файлы для проверки</b><br><span class="muted small">PDF с подписью, или документ вместе с его .sig, или архив .zip — можно перетащить сразу всё</span></div>
-  </label>
-  <div id="status"></div>
 </div>
+
+<label class="drop hero-drop" id="drop">
+  <input type="file" id="file" multiple>
+  <div class="hero-drop-in">
+    <svg class="drop-ico" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6l20 8v15c0 13-9 22-20 27C21 51 12 42 12 29V14z" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/><path d="M23 31l7 7 12-13" fill="none" stroke="var(--accent)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div>
+      <b class="big-label">Выберите файлы для проверки</b>
+      <span class="muted">Подписанный PDF, документ вместе с его .sig или архив .zip — можно перетащить всё сразу</span>
+    </div>
+  </div>
+</label>
+<div id="status"></div>
 
 <div id="results"></div>
 
@@ -37,6 +43,7 @@
 {% endblock %}
 {% block scripts %}
 <script src="/static/vendor/jszip.min.js"></script>
+<script src="/static/handoff.js?v={{ version }}"></script>
 <script src="/static/vendor/gost/gostDigest.min.js"></script>
 <script src="/static/cmsverify.js?v={{ version }}"></script>
 <script src="/static/pdfinc.js?v={{ version }}"></script>

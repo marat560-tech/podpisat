@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_art.html" as art %}
 {% block head %}
 <script type="application/ld+json">{{ {
   "@context": "https://schema.org",
@@ -10,16 +11,34 @@
 } | tojson }}</script>
 {% endblock %}
 {% block content %}
-<section class="hero">
-  <span class="pill">● Бесплатно, без регистрации</span>
-  <h1>Электронная подпись и ЕГАИС без лишних программ и подписок</h1>
-  <p class="lead">Подпишите документ прямо в браузере — Рутокеном или через КриптоПро. Без КриптоАРМ, без установки тяжёлых программ. Файл не покидает ваш компьютер.</p>
-  <div class="btns">
-    <a class="btn primary big" href="/sign">Подписать файл</a>
-    <a class="btn big" href="/pdf">PDF со штампом</a>
-    <a class="btn big" href="/verify">Проверить подпись</a>
+<section class="hero2">
+  <div class="hero-text">
+    <span class="pill">● Бесплатно, без регистрации</span>
+    <h1>Подписать и проверить электронную подпись — прямо в браузере</h1>
+    <p class="lead">Рутокен из налоговой или КриптоПро. PDF со штампом, файлы с подписью .sig, проверка любых подписей. Без КриптоАРМ, подписок и рекламы. Файлы не покидают ваш компьютер.</p>
+    <label class="drop hero-drop home-drop" id="drop">
+      <input type="file" id="file" multiple>
+      <div class="hero-drop-in">
+        <svg class="drop-ico" viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="6" width="32" height="42" rx="4" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2.5"/><path d="M20 18h16M20 25h16M20 32h9" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><circle cx="45" cy="46" r="12" fill="var(--accent)"/><path d="M45 52V40M39 45l6-6 6 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <div>
+          <b class="big-label">Перетащите файл сюда</b>
+          <span class="muted">PDF — подпишем со штампом, другие файлы — подписью .sig, файл подписи — проверим</span>
+        </div>
+      </div>
+    </label>
+    <div id="home-status"></div>
+  </div>
+  <div class="hero-art">
+    {{ art.doc_with_stamp('band', 'tilt') }}
   </div>
 </section>
+
+<div class="quick">
+  <a href="/pdf">PDF со штампом</a>
+  <a href="/sign">Подписать файлы .sig</a>
+  <a href="/verify">Проверить подпись</a>
+  <a href="/help4x">Удалённая помощь</a>
+</div>
 
 <h2>Что здесь есть</h2>
 <div class="grid">
@@ -67,10 +86,19 @@
   </a>
 </div>
 
+<h2>Штамп — как вам нравится</h2>
+<p class="muted" style="margin-top:-6px">Оттиск по ГОСТ Р 7.0.97-2025: номер сертификата, владелец и срок действия. Четыре стиля, шесть цветов, можно добавить логотип или герб. И никаких надписей нашего сайта.</p>
+{{ art.gallery() }}
+<p><a class="btn" href="/pdf">Подписать PDF со штампом</a></p>
+
 <h2>Почему это бесплатно</h2>
 <div class="facts">
   <div class="fact"><b>Без пробных 30 дней</b>Что работает — работает бесплатно и без урезанных версий.</div>
   <div class="fact"><b>Ваш файл остаётся у вас</b>Подпись создаётся в вашем браузере, документ никуда не отправляется.</div>
   <div class="fact"><b>Платно — только руками</b>Помощь с установкой и настройкой — от 1&nbsp;000&nbsp;₽. Самая сложная настройка — не дороже 5&nbsp;000&nbsp;₽.</div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/handoff.js?v={{ version }}"></script>
+<script src="/static/home.js?v={{ version }}"></script>
 {% endblock %}

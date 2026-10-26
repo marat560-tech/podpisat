@@ -359,8 +359,16 @@
       state.onSelect = opts && opts.onSelect;
       $('refresh').addEventListener('click', refreshCerts);
       ready = Promise.all([initRutoken(), initCryptoPro()]).then(function () {
+        var names = [state.rt ? 'Рутокен' : '', state.cp ? 'КриптоПро' : ''].filter(Boolean);
+        var sum = $('plug-sum'), dot = $('plug-sum-dot'), box = $('plugbox');
+        if (sum) {
+          sum.textContent = names.length ? 'Плагин для подписи готов: ' + names.join(' и ') : 'Не найден плагин для подписи — установите его, это бесплатно';
+          dot.className = 'dot ' + (names.length ? 'ok' : 'err');
+          box.classList.toggle('bad', !names.length);
+          if (!names.length) box.open = true;
+        }
         if (!state.rt && !state.cp) {
-          $('cert-hint').innerHTML = 'Не найден ни один плагин для подписи — установите один из них (ссылки выше).';
+          $('cert-hint').innerHTML = 'Сначала установите плагин для подписи (подсказка выше).';
         }
       });
       return ready;

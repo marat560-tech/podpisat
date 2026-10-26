@@ -221,5 +221,7 @@
       drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
     });
     drop.addEventListener('drop', function (e) { if (e.dataTransfer.files.length) check(e.dataTransfer.files); });
+    // файлы, выбранные на главной
+    Handoff.take().then(function (list) { if (list.length) check(list); });
   });
 })();

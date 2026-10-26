@@ -36,14 +36,16 @@
     });
   }
 
-  function enable(stepId, on) { $(stepId).classList.toggle('off', !on); }
 
   function updateSignButton() {
     var c = ESign.selected();
     var ready = files.length && c && !c.expired;
     $('sign').disabled = !ready;
     $('sign').textContent = files.length > 1 ? 'Подписать ' + files.length + ' ' + plural(files.length, 'файл', 'файла', 'файлов') : 'Подписать';
-    enable('st3', !!ready);
+    if (!$('status').querySelector('.err')) {
+      if (files.length && !c) status('info', 'Выберите подпись в пункте 1.');
+      else status();
+    }
   }
 
   function plural(n, one, few, many) {
@@ -64,7 +66,7 @@
     Array.prototype.forEach.call(box.querySelectorAll('button.x'), function (b) {
       b.addEventListener('click', function () { files.splice(+b.dataset.i, 1); renderFiles(); updateSignButton(); });
     });
-    enable('st2', files.length > 0);
+    $('pdf-tip').hidden = !files.some(function (f) { return /\.pdf$/i.test(f.name); });
     updateSignButton();
   }
 
@@ -167,5 +169,7 @@
     $('sign').addEventListener('click', doSign);
     $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !$('sign').disabled) doSign(); });
     ESign.start({ onSelect: updateSignButton });
+    // файлы, выбранные на главной
+    Handoff.take().then(function (list) { if (list.length) addFiles(list); });
   });
 })();
