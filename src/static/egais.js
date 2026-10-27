@@ -203,12 +203,12 @@
     });
   }
 
-  function remember(key) {
-    try { var m = JSON.parse(localStorage.getItem('podp:egais:sent') || '{}'); m[key] = Date.now(); localStorage.setItem('podp:egais:sent', JSON.stringify(m)); } catch (e) { /* нет хранилища */ }
+  function sentMap() { try { return JSON.parse(localStorage.getItem('podp:egais:sent') || '{}'); } catch (e) { return {}; } }
+  function remember(key, extra) {
+    try { var m = sentMap(); m[key] = Object.assign({ t: Date.now() }, extra || {}); localStorage.setItem('podp:egais:sent', JSON.stringify(m)); } catch (e) { /* нет хранилища */ }
   }
-  function sentAt(key) {
-    try { return JSON.parse(localStorage.getItem('podp:egais:sent') || '{}')[key] || 0; } catch (e) { return 0; }
-  }
+  function sentInfo(key) { var v = sentMap()[key]; return v ? (typeof v === 'number' ? { t: v } : v) : null; }
+  function sentAt(key) { var v = sentInfo(key); return v ? v.t : 0; }
   function hhmm(t) { return new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 
   function ensureFsrar() {
@@ -369,12 +369,81 @@
   // ---------------------------------------------------------------- вывод
   function stateOf(w) {
     if (!w.reg) return { cls: 'soon', text: 'Нет справки о регистрации' };
+    var sent = w.reg && sentInfo('act:' + w.reg.wbRegId);
     var t = w.tickets.filter(function (x) { return /act|waybill|confirm|reject/i.test(x.docType + ' ' + x.operation); });
     if (t.length) {
       var last = t[t.length - 1];
       return { cls: /reject|отказ|error|ошиб/i.test(last.conclusion + last.operation + last.comment) ? 'bad' : 'live', text: 'Есть квитанция' };
     }
+    if (sent) return { cls: 'wait', text: (sent.a === 'Accepted' ? 'Принята' : 'Отказ') + ', ждём квитанцию' };
     return { cls: 'wait', text: 'Ждёт решения' };
+  }
+
+  // Решение уже есть: квитанция по акту или наш отправленный акт
+  function decided(w) {
+    if (!w.reg) return true;
+    if (sentInfo('act:' + w.reg.wbRegId)) return true;
+    return w.tickets.some(function (x) { return /act|confirm|reject/i.test(x.docType + ' ' + x.operation); });
+  }
+
+  // ---------------------------------------------------------------- акт: принять / отказать
+  function actXml(w, accept, note) {
+    var d = new Date(), z = function (x) { return ('0' + x).slice(-2); };
+    var actDate = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+    var actNumber = 'P' + String(Date.now()).slice(-9);
+    var inner = '<ns:WayBillAct_v4>' +
+      '<wa:Header>' +
+        '<wa:IsAccept>' + (accept ? 'Accepted' : 'Rejected') + '</wa:IsAccept>' +
+        '<wa:ACTNUMBER>' + actNumber + '</wa:ACTNUMBER>' +
+        '<wa:ActDate>' + actDate + '</wa:ActDate>' +
+        '<wa:WBRegId>' + xmlEsc(w.reg.wbRegId) + '</wa:WBRegId>' +
+        '<wa:Note>' + xmlEsc(note || '') + '</wa:Note>' +
+      '</wa:Header>' +
+      '<wa:Content></wa:Content>' +
+    '</ns:WayBillAct_v4>';
+    return documentsXml(inner).replace('xmlns:qp="http://fsrar.ru/WEGAIS/QueryParameters"',
+      'xmlns:wa="http://fsrar.ru/WEGAIS/ActTTNSingle_v4" xmlns:ce="http://fsrar.ru/WEGAIS/CommonV3"');
+  }
+
+  function askAct(w, accept) {
+    var body = '<dl class="kv small">' +
+      '<dt>Накладная</dt><dd>№ ' + esc(w.number) + ' от ' + esc(fmtDate(w.date)) + '</dd>' +
+      '<dt>Поставщик</dt><dd>' + esc(w.shipper.name) + (w.shipper.inn ? ', ИНН ' + esc(w.shipper.inn) : '') + '</dd>' +
+      '<dt>Сумма</dt><dd>' + money(w.total) + ' · позиций ' + w.positions.length + (w.marks ? ' · марок ' + w.marks : '') + '</dd>' +
+      '<dt>Рег. номер</dt><dd>' + esc(w.reg.wbRegId) + '</dd></dl>' +
+      (accept
+        ? '<p>Накладная будет <b>принята полностью</b>: вся продукция поступит на ваш склад в ЕГАИС.</p>'
+        : '<p>Накладная будет <b>отклонена полностью</b>: продукция вернётся поставщику в ЕГАИС.</p>' +
+          '<label class="field" style="max-width:none"><span>Причина отказа</span><input type="text" id="act-note" maxlength="500" placeholder="Например: товар не поступал"></label>') +
+      '<p class="muted small">Это юридически значимое действие в ЕГАИС, отменить его нельзя — только по согласованию с поставщиком.</p>';
+    st.pendingNote = '';
+    var dlg = confirmSend(accept ? 'Принять накладную?' : 'Отказаться от накладной?', body, accept ? 'Принять' : 'Отказать');
+    if (!accept) {
+      // кнопка «Отказать» активна только с причиной
+      setTimeout(function () {
+        var inp = document.getElementById('act-note'), ok = document.querySelector('dialog.confirm [data-a="1"]');
+        if (!inp || !ok) return;
+        ok.disabled = true;
+        inp.addEventListener('input', function () { st.pendingNote = inp.value.trim(); ok.disabled = !st.pendingNote; });
+        inp.focus();
+      }, 0);
+    }
+    dlg.then(function (yes) {
+      if (!yes) return;
+      var note = accept ? '' : st.pendingNote;
+      if (!accept && !note) return;
+      status('wait', 'Отправляем акт в ЕГАИС…');
+      return ensureFsrar().then(function () {
+        return postDoc('WayBillAct_v4', actXml(w, accept, note));
+      }).then(function (rid) {
+        remember('act:' + w.reg.wbRegId, { a: accept ? 'Accepted' : 'Rejected', id: rid });
+        status('ok', 'Акт по накладной № ' + esc(w.number) + ' отправлен (' + (accept ? 'принять' : 'отказ') + '). ' +
+          'Через несколько минут нажмите «Загрузить из УТМ» — придёт квитанция ЕГАИС с результатом.');
+        render();
+      });
+    }).catch(function (e) {
+      status('err', 'Акт не отправлен: ' + esc(e && e.message || e));
+    });
   }
 
   function render() {
@@ -403,6 +472,13 @@
       '</div>';
     }).join('');
     $('wb-list').innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act]'), function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var w = st.waybills.find(function (x) { return x.doc.path === b.getAttribute('data-key'); });
+        if (w) askAct(w, b.getAttribute('data-act') === '1');
+      });
+    });
     Array.prototype.forEach.call(document.querySelectorAll('[data-resend]'), function (b) {
       b.addEventListener('click', function () { askResend(st.nattn.list[+b.getAttribute('data-resend')]); });
     });
@@ -452,6 +528,15 @@
       }).join('') + '</tbody></table></div>';
   }
 
+  function actButtons(w) {
+    if (!w.reg) return '<p class="small muted" style="margin-top:10px">Принять или отказать можно после того, как в УТМ придёт справка о регистрации накладной в ЕГАИС.</p>';
+    var s = sentInfo('act:' + w.reg.wbRegId);
+    if (s) return '<p class="small" style="margin-top:10px">Акт отправлен ' + hhmm(s.t) + ' (' + (s.a === 'Accepted' ? 'принять' : 'отказ') + '), ждём квитанцию ЕГАИС.</p>';
+    if (decided(w)) return '';
+    return '<div class="row act-row"><button type="button" class="btn primary" data-act="1" data-key="' + esc(w.doc.path) + '">Принять полностью</button>' +
+      '<button type="button" class="btn" data-act="0" data-key="' + esc(w.doc.path) + '">Отказать</button></div>';
+  }
+
   function details(w) {
     var rows = w.positions.map(function (p) {
       return '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.name) + '<div class="muted small">' + esc(p.alccode) +
@@ -473,6 +558,7 @@
       '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>№</th><th>Продукция</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th><th class="r">Марок</th></tr></thead><tbody>' +
         rows + '</tbody><tfoot><tr><td></td><td>Итого: позиций ' + w.positions.length + '</td><td></td><td></td><td class="r"><b>' + money(w.total) + '</b></td><td class="r">' + (w.marks || '') + '</td></tr></tfoot></table></div>' +
       (t ? '<p class="small" style="margin:10px 0 4px"><b>Квитанции</b></p><ul class="small" style="margin:0;padding-left:18px">' + t + '</ul>' : '') +
+      actButtons(w) +
       '<details class="more-opts" style="margin-top:10px"><summary>Показать XML накладной</summary><pre class="diag">' + esc(w.doc.xml.slice(0, 200000)) + '</pre></details>' +
     '</div>';
   }

@@ -366,3 +366,4 @@ dialog.confirm h3 { margin: 0 0 10px; font-size: 19px; }
 .confirm-body p { margin: 0 0 10px; }
 .nattn .tbl td { vertical-align: middle; }
 .nattn .tag { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+.act-row { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
