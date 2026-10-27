@@ -70,6 +70,27 @@
   }
 
   // ---------------------------------------------------------------- Рутокен Плагин
+  // Настоящий Рутокен Плагин (через расширение-адаптер) возвращает не обычные Promise,
+  // а «thenable»: у них есть .then, но нет .catch/.finally. Оборачиваем все методы,
+  // чтобы дальше работать с обычными Promise.
+  function promisifyPlugin(plugin) {
+    var w = {};
+    for (var k in plugin) (function (k) {
+      var v = plugin[k];
+      if (typeof v === 'function') {
+        w[k] = function () {
+          var args = arguments;
+          return new Promise(function (res, rej) {
+            try { Promise.resolve(v.apply(plugin, args)).then(res, rej); } catch (e) { rej(e); }
+          });
+        };
+      } else {
+        w[k] = v;
+      }
+    })(k);
+    return w;
+  }
+
   function initRutoken() {
     if (!window.rutoken) { setPlug('plug-rt', false, 'Не удалось загрузить модуль.'); return Promise.resolve(); }
     return withTimeout(rutoken.ready, 8000).then(function () {
@@ -82,7 +103,7 @@
       if (!plug) throw new Error('noplugin');
       return rutoken.loadPlugin();
     }).then(function (plugin) {
-      state.rt = plugin;
+      state.rt = promisifyPlugin(plugin);
       var ver = plugin.version ? ' (версия ' + esc(plugin.version) + ')' : '';
       setPlug('plug-rt', true, 'Установлен' + ver + '.');
     }).catch(function (e) {

@@ -324,3 +324,8 @@ body.ws-open main { padding-top: 14px; }
 .drop { position: relative; }
 .drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
 .btn:focus-visible, .chip-btn:focus-visible, .swatch:focus-visible, .nav a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* длинные сообщения об ошибках не распирают панель */
+.note, .plug .st, .cert .meta { overflow-wrap: anywhere; }
+.ws-side { overflow-x: hidden; }
+.ws-side > * { min-width: 0; }
