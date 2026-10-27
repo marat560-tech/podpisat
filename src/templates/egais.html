@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <span class="badge">В разработке</span>
+  <h1 style="margin-top:10px">ЕГАИС</h1>
+  <p class="lead">{{ lead }}</p>
+</div>
+
+<div class="card" id="utm-check">
+  <h3>Проверка УТМ</h3>
+  <p class="muted" style="margin-top:0">Проверьте, видит ли сайт ваш УТМ. Проверка только читает сведения из УТМ — в ЕГАИС ничего не отправляется и ничего не меняется.</p>
+  <div class="utm-form">
+    <label class="field" for="utm-url">
+      <span>Адрес УТМ</span>
+      <input id="utm-url" type="text" value="http://localhost:8080" spellcheck="false" autocomplete="off">
+    </label>
+    <button class="btn primary" id="utm-go" type="button">Проверить</button>
+  </div>
+  <p class="small muted" style="margin:8px 0 0">УТМ на этом компьютере — оставьте как есть. УТМ на другом компьютере в сети — укажите его адрес, например <code>http://192.168.1.10:8080</code>.</p>
+  <div id="utm-result"></div>
+</div>
+
+<div class="card">
+  <h3>Что будет в разделе</h3>
+  <ul class="plan" style="margin:0;max-width:none">
+  {% for item in plan %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <p class="muted small" style="margin:14px 0 0">Хотите быть среди первых, кто попробует? Скачайте <a href="/help4x">Help4x</a> и позвоните <a href="tel:{{ phone_tel }}">{{ phone }}</a> — подключим вместе.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/utmcheck.js?v={{ version }}"></script>
+{% endblock %}

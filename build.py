@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "15"
+VERSION = "16"
 PHONE = "+7 (843) 208-53-54"
 PHONE_TEL = "+78432085354"
 SITE = "https://xn--80ahmweccok4b0dm.xn--p1ai"  # подписатьэцп.рф
@@ -167,7 +167,7 @@ def main():
                       description="О проекте подписатьэцп.рф"),
     }
     for key, data in SOON.items():
-        pages[key] = dict(tpl="soon.html", active=key, icon=ICONS[key],
+        pages[key] = dict(tpl="egais.html" if key == "egais" else "soon.html", active=key, icon=ICONS[key],
                           description=data["lead"], **data)
     for name, ctx in pages.items():
         ctx["path"] = "/" if name == "index" else "/" + name

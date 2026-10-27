@@ -329,3 +329,10 @@ body.ws-open main { padding-top: 14px; }
 .note, .plug .st, .cert .meta { overflow-wrap: anywhere; }
 .ws-side { overflow-x: hidden; }
 .ws-side > * { min-width: 0; }
+
+/* проверка УТМ */
+.utm-form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.utm-form .field { flex: 1; min-width: 240px; max-width: 420px; }
+.utm-form .field span { font-size: 14px; color: var(--ink-2); }
+.utm-form input { font-family: ui-monospace, Consolas, monospace; }
+pre.diag { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 260px; overflow: auto; }
