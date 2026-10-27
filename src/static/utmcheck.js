@@ -189,6 +189,13 @@
     ].filter(Boolean).join('\n');
   }
 
+  // Общие помощники для других модулей ЕГАИС на этой странице
+  window.Utm = {
+    origin: function () { return normalize($('utm-url').value); },
+    fetchOpts: function (origin) { return lnaOpts(addressKind(origin)); },
+    fetch: function (url, opts) { return withTimeout(url, opts); }
+  };
+
   document.addEventListener('DOMContentLoaded', function () {
     $('utm-go').addEventListener('click', run);
     $('utm-url').addEventListener('keydown', function (e) { if (e.key === 'Enter') run(); });

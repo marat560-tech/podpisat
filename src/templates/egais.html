@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-head">
-  <span class="badge">В разработке</span>
+  <span class="badge">Бета</span>
   <h1 style="margin-top:10px">ЕГАИС</h1>
   <p class="lead">{{ lead }}</p>
 </div>
@@ -20,6 +20,17 @@
   <div id="utm-result"></div>
 </div>
 
+<div class="card" id="waybills">
+  <h3>Входящие накладные</h3>
+  <p class="muted" style="margin-top:0">Накладные из вашего УТМ: от кого, номер, сумма, позиции и марки. Только просмотр — в ЕГАИС ничего не отправляется, из УТМ ничего не удаляется.</p>
+  <div class="row tight">
+    <button class="btn primary" id="wb-load" type="button">Загрузить из УТМ</button>
+    <input id="wb-q" class="search" type="search" placeholder="Поиск: номер, поставщик, ИНН">
+  </div>
+  <div id="wb-status"></div>
+  <div id="wb-list"></div>
+</div>
+
 <div class="card">
   <h3>Что будет в разделе</h3>
   <ul class="plan" style="margin:0;max-width:none">
@@ -30,4 +41,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="/static/utmcheck.js?v={{ version }}"></script>
+<script src="/static/egais.js?v={{ version }}"></script>
 {% endblock %}
