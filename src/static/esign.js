@@ -177,7 +177,7 @@
       detached: true,
       addUserCertificate: true,
       addSignTime: opts.signTime !== false,
-      addEssCertV2: true,
+      addEssCert: true,          // атрибут signingCertificateV2 — обязателен для CAdES-BES и PAdES
       useHardwareHash: false
     };
     return p.login(cert.device, pin).then(function () {
