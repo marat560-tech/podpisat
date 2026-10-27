@@ -844,10 +844,11 @@
       var hs = br[0] + br[1], he = br[2];
       if (s.charAt(hs) !== '<' || s.charAt(he - 1) !== '>') continue;
       var hex = s.slice(hs + 1, he - 1).replace(/\s+/g, '');
-      // убрать нули в конце (заполнитель)
-      var bytesHex = hex.replace(/(00)+$/, '');
-      var cms = new Uint8Array(bytesHex.length >> 1);
-      for (var i = 0; i < cms.length; i++) cms[i] = parseInt(bytesHex.substr(i * 2, 2), 16);
+      var all = new Uint8Array(hex.length >> 1);
+      for (var i = 0; i < all.length; i++) all[i] = parseInt(hex.substr(i * 2, 2), 16);
+      // Длину подписи берём из её DER-заголовка: нули в конце — заполнитель, но сама подпись
+      // тоже может заканчиваться нулевым байтом, поэтому «отрезать нули» нельзя.
+      var cms = all.subarray(0, derLength(all));
       // словарь подписи: от ближайшего «obj» до «endobj»
       var objStart = s.lastIndexOf(' obj', m.index), objEnd = s.indexOf('endobj', he);
       var dictText = s.slice(objStart, objEnd < 0 ? he + 2000 : objEnd);
@@ -863,6 +864,16 @@
       });
     }
     return out;
+  }
+
+  function derLength(b) {
+    if (b.length < 2 || b[0] !== 0x30) return b.length;
+    var l = b[1];
+    if (l < 0x80) return Math.min(b.length, 2 + l);
+    if (l === 0x80) return b.length;           // BER, неопределённая длина — разбор сам найдёт конец
+    var n = l & 0x7f, len = 0;
+    for (var i = 0; i < n; i++) len = len * 256 + b[2 + i];
+    return Math.min(b.length, 2 + n + len);
   }
 
   function parsePdfDate(t) {

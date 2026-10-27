@@ -61,8 +61,15 @@ function makeKey(bits, curve, curveOid, cn) {
   // Тестовая библиотека держит общее состояние между объектами: после создания второго ключа
   // первый объект начинает подписывать неверно. Поэтому каждая подпись — свежим объектом.
   const signer = () => new libCtx.GostSign({ name: 'GOST R 34.10', version: 2012, length: bits, namedCurve: curve, procreator: 'CP', hash: 'GOST R 34.11' });
-  const k = signer().generateKey();
-  const s = { sign: (priv, d) => signer().sign(priv, d) };
+  let k;
+  for (let i = 0; !k; i++) { try { k = signer().generateKey(); } catch (e) { if (i >= 9) throw e; } }
+  // Тестовая библиотека изредка падает на неудачном случайном k («subtract is not defined») —
+  // просто подписываем ещё раз со свежим k. К проверяемому коду сайта это не относится.
+  const s = { sign: (priv, d) => {
+    for (let i = 0; ; i++) {
+      try { return signer().sign(priv, d); } catch (e) { if (i >= 9) throw e; }
+    }
+  } };
   const a = ALG[bits];
   const name = seq(set(seq(oid('2.5.4.3'), utf8(cn))), set(seq(oid('2.5.4.4'), utf8('Иванов'))), set(seq(oid('2.5.4.42'), utf8('Иван Иванович'))));
   const now = Date.now();
@@ -162,6 +169,16 @@ async function main() {
       check(f + ': без ошибок', false, e.message);
     }
   }
+  // Подпись, которая сама заканчивается нулевыми байтами, не должна обрезаться при чтении из PDF
+  {
+    const d = await PdfInc.open(new Uint8Array(fs.readFileSync(path.join(fixtures, 'plain.pdf'))));
+    const prep = await PdfInc.prepare(d, { widgets: [], name: 'x' });
+    const fake = new Uint8Array([0x30, 0x06, 0x02, 0x01, 0x05, 0x04, 0x01, 0x00]);
+    const out = PdfInc.finish(prep, fake);
+    const got = PdfInc.findSignatures(out)[0].cms;
+    check('подпись с нулём в конце читается из PDF целиком', got.length === fake.length && got.every((v, i) => v === fake[i]), 'длина ' + got.length);
+  }
+
   let encErr = '';
   try { await PdfInc.open(new Uint8Array(fs.readFileSync(path.join(fixtures, 'enc-nopass.pdf')))); } catch (e) { encErr = e.message; }
   check('зашифрованный PDF: понятный отказ', /защищён/.test(encErr));
