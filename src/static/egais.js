@@ -482,10 +482,14 @@
       return [w.number, w.shipper.name, w.shipper.inn, w.reg && w.reg.wbRegId].join(' ').toLowerCase().indexOf(q) >= 0;
     });
     var counts = Object.keys(st.counts || {}).sort().map(function (k) { return esc(k) + ': ' + st.counts[k]; }).join(' · ');
-    var html = nattnHtml() + '<p class="small muted" style="margin:10px 0">Накладных в УТМ: <b>' + st.waybills.length + '</b>' +
-      (st.failed ? ' · не удалось прочитать: ' + st.failed : '') + '. Всего документов в УТМ — ' + counts + '.</p>';
+    var html = nattnHtml() + '<p style="margin:16px 0 4px"><b>Накладные в УТМ: ' + st.waybills.length + '</b> <span class="muted small">— документы целиком, их можно открыть, принять или отказать</span></p>' +
+      '<p class="small muted" style="margin:0 0 8px">' +
+      'Всего документов в УТМ — ' + counts + (st.failed ? ' · не удалось прочитать: ' + st.failed : '') + '.</p>';
     if (!list.length) {
-      html += '<div class="note info">' + (st.waybills.length ? 'Ничего не найдено.' : 'Входящих накладных в УТМ нет.') + '</div>';
+      var waiting = st.nattn && st.nattn.list.length;
+      html += '<div class="note info">' + (st.waybills.length ? 'Ничего не найдено.' : waiting
+        ? 'Самих накладных в УТМ пока нет. Список выше — только номера от ЕГАИС. Чтобы увидеть накладную целиком и принять или отказать, нажмите «Запросить накладную» — она придёт в УТМ через несколько минут и появится здесь.'
+        : 'Накладных в УТМ нет.') + '</div>';
     }
     html += list.map(function (w, i) {
       var s = stateOf(w), key = w.doc.path, open = !!st.open[key];
@@ -530,7 +534,7 @@
     var inUtm = {};
     (st.regs || []).forEach(function (r) { inUtm[r.wbRegId] = 1; });
     var items = st.nattn.list;
-    var html = '<div class="nattn"><p style="margin:12px 0 6px"><b>Ждут решения по данным ЕГАИС: ' + items.length + '</b>' +
+    var html = '<div class="nattn"><p style="margin:12px 0 6px"><b>Ждут решения по данным ЕГАИС: ' + items.length + '</b> <span class="muted small">— список номеров из ЕГАИС</span>' +
       ' <span class="muted small">(ответ ЕГАИС от ' + esc(fmtDate(st.nattn.date)) + ')</span></p>';
     if (!items.length) return html + '<div class="note ok">Неподтверждённых накладных нет.</div></div>';
     html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Номер</th><th>Поставщик (ФСРАР ID)</th><th>Рег. номер</th><th></th></tr></thead><tbody>' +
