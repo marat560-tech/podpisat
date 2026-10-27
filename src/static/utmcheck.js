@@ -40,8 +40,11 @@
 
   function withTimeout(url, opts) {
     var ctl = new AbortController();
-    var t = setTimeout(function () { ctl.abort(); }, TIMEOUT);
-    opts = Object.assign({ cache: 'no-store', signal: ctl.signal }, opts || {});
+    opts = Object.assign({}, opts || {});
+    var ms = opts.timeout || TIMEOUT;
+    delete opts.timeout;
+    var t = setTimeout(function () { ctl.abort(); }, ms);
+    opts = Object.assign({ cache: 'no-store', signal: ctl.signal }, opts);
     return fetch(url, opts).finally(function () { clearTimeout(t); });
   }
 

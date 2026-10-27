@@ -8,6 +8,8 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var PARALLEL = 6;
+  var SEND_TIMEOUT = window.EGAIS_SEND_TIMEOUT || 180000;   // переопределяется только в тестах
+  var SENDING = 'УТМ подписывает документ и передаёт его в ЕГАИС — это может занять до минуты. Не закрывайте страницу и не нажимайте повторно.';
   var st = { origin: null, docs: [], waybills: [], open: {} };
 
   function esc(s) {
@@ -175,8 +177,13 @@
   function postDoc(type, xml) {
     var fd = new FormData();
     fd.append('xml_file', new Blob([xml], { type: 'text/xml' }), type + '.xml');
-    var opts = Object.assign({ method: 'POST', body: fd }, Utm.fetchOpts(st.origin));
-    return Utm.fetch(st.origin + '/opt/in/' + type, opts).then(function (r) {
+    // УТМ подписывает документ ключом и передаёт в ЕГАИС до ответа — это может занять минуту и больше.
+    var opts = Object.assign({ method: 'POST', body: fd, timeout: SEND_TIMEOUT }, Utm.fetchOpts(st.origin));
+    return Utm.fetch(st.origin + '/opt/in/' + type, opts).catch(function (e) {
+      // Не дождались ответа: документ мог уйти. Повторять нельзя — для акта это был бы второй акт.
+      if (e && e.name === 'AbortError') { var u = new Error('УТМ не ответил за ' + SEND_TIMEOUT / 60000 + ' мин'); u.uncertain = true; throw u; }
+      throw new Error('не удалось связаться с УТМ (' + ((e && e.message) || e) + ')');
+    }).then(function (r) {
       return r.text().then(function (t) {
         var err = /<error[^>]*>([\s\S]*?)<\/error>/i.exec(t);
         if (!r.ok || err) throw new Error((err ? err[1] : 'HTTP ' + r.status).replace(/<[^>]+>/g, ' ').trim().slice(0, 300));
@@ -228,7 +235,13 @@
     });
   }
 
+  function busy(on) {
+    st.busy = on;
+    Array.prototype.forEach.call(document.querySelectorAll('#wb-nattn, [data-act], [data-resend]'), function (b) { b.disabled = on; });
+  }
+
   function askNattn() {
+    if (st.busy) return;
     st.origin = Utm.origin();
     ensureFsrar().then(function (id) {
       return confirmSend('Запросить неподтверждённые накладные?',
@@ -237,14 +250,18 @@
         'Отправить запрос');
     }).then(function (ok) {
       if (!ok) return;
-      status('wait', 'Отправляем запрос в ЕГАИС…');
+      status('wait', 'Отправляем запрос в ЕГАИС… ' + SENDING);
+      busy(true);
       return postDoc('QueryNATTN', queryXml('QueryNATTN', 'КОД', st.fsrar)).then(function (rid) {
         remember('QueryNATTN');
         status('ok', 'Запрос отправлен' + (rid ? ' (номер в УТМ: <code>' + esc(rid) + '</code>)' : '') + '. Через несколько минут нажмите «Загрузить из УТМ» — появится список неподтверждённых накладных.');
       });
     }).catch(function (e) {
-      status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
-    });
+      if (e && e.uncertain) {
+        remember('QueryNATTN', { uncertain: true });
+        status('wait', esc(e.message) + '. Запрос, скорее всего, ушёл. Подождите несколько минут и нажмите «Загрузить из УТМ» — если ответ не придёт, тогда запросите ещё раз.');
+      } else status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
+    }).then(function () { busy(false); });
   }
 
   function askResend(item) {
@@ -254,8 +271,9 @@
       '<dt>Рег. номер</dt><dd>' + esc(item.wbRegId) + '</dd><dt>Поставщик</dt><dd>ФСРАР ID ' + esc(item.shipper) + '</dd></dl>' +
       '<p class="muted small">Это запрос сведений: накладная при этом не принимается и не отклоняется.</p>',
       'Запросить').then(function (ok) {
-      if (!ok) return;
-      status('wait', 'Отправляем запрос…');
+      if (!ok || st.busy) return;
+      status('wait', 'Отправляем запрос… ' + SENDING);
+      busy(true);
       return ensureFsrar().then(function () {
         return postDoc('QueryResendDoc', queryXml('QueryResendDoc', 'WBREGID', item.wbRegId));
       }).then(function () {
@@ -264,8 +282,12 @@
         render();
       });
     }).catch(function (e) {
-      status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
-    });
+      if (e && e.uncertain) {
+        remember('resend:' + item.wbRegId, { uncertain: true });
+        status('wait', esc(e.message) + '. Запрос, скорее всего, ушёл — подождите несколько минут и нажмите «Загрузить из УТМ».');
+        render();
+      } else status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
+    }).then(function () { busy(false); });
   }
 
   // ---------------------------------------------------------------- загрузка
@@ -375,7 +397,7 @@
       var last = t[t.length - 1];
       return { cls: /reject|отказ|error|ошиб/i.test(last.conclusion + last.operation + last.comment) ? 'bad' : 'live', text: 'Есть квитанция' };
     }
-    if (sent) return { cls: 'wait', text: (sent.a === 'Accepted' ? 'Принята' : 'Отказ') + ', ждём квитанцию' };
+    if (sent) return { cls: 'wait', text: sent.uncertain ? 'Акт, возможно, отправлен' : (sent.a === 'Accepted' ? 'Принята' : 'Отказ') + ', ждём квитанцию' };
     return { cls: 'wait', text: 'Ждёт решения' };
   }
 
@@ -432,7 +454,9 @@
       if (!yes) return;
       var note = accept ? '' : st.pendingNote;
       if (!accept && !note) return;
-      status('wait', 'Отправляем акт в ЕГАИС…');
+      if (st.busy) return;
+      status('wait', 'Отправляем акт в ЕГАИС… ' + SENDING);
+      busy(true);
       return ensureFsrar().then(function () {
         return postDoc('WayBillAct_v4', actXml(w, accept, note));
       }).then(function (rid) {
@@ -442,8 +466,13 @@
         render();
       });
     }).catch(function (e) {
-      status('err', 'Акт не отправлен: ' + esc(e && e.message || e));
-    });
+      if (e && e.uncertain) {
+        // Блокируем повтор: второй акт по той же накладной — хуже, чем подождать квитанцию
+        remember('act:' + w.reg.wbRegId, { a: accept ? 'Accepted' : 'Rejected', uncertain: true });
+        status('err', esc(e.message) + '. <b>Неизвестно, ушёл ли акт. Повторно не отправляйте.</b> Через несколько минут нажмите «Загрузить из УТМ» и посмотрите квитанцию по этой накладной.');
+        render();
+      } else status('err', 'Акт не отправлен: ' + esc(e && e.message || e));
+    }).then(function () { busy(false); });
   }
 
   function render() {
@@ -531,7 +560,8 @@
   function actButtons(w) {
     if (!w.reg) return '<p class="small muted" style="margin-top:10px">Принять или отказать можно после того, как в УТМ придёт справка о регистрации накладной в ЕГАИС.</p>';
     var s = sentInfo('act:' + w.reg.wbRegId);
-    if (s) return '<p class="small" style="margin-top:10px">Акт отправлен ' + hhmm(s.t) + ' (' + (s.a === 'Accepted' ? 'принять' : 'отказ') + '), ждём квитанцию ЕГАИС.</p>';
+    if (s) return '<p class="small" style="margin-top:10px">' + (s.uncertain ? 'Акт, возможно, отправлен ' : 'Акт отправлен ') + hhmm(s.t) +
+      ' (' + (s.a === 'Accepted' ? 'принять' : 'отказ') + ')' + (s.uncertain ? ' — ответ УТМ не получен. Повторно не отправляйте, дождитесь квитанции ЕГАИС.' : ', ждём квитанцию ЕГАИС.') + '</p>';
     if (decided(w)) return '';
     return '<div class="row act-row"><button type="button" class="btn primary" data-act="1" data-key="' + esc(w.doc.path) + '">Принять полностью</button>' +
       '<button type="button" class="btn" data-act="0" data-key="' + esc(w.doc.path) + '">Отказать</button></div>';
