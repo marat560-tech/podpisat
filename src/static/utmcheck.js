@@ -154,9 +154,13 @@
       var ver = get(/^version$/i);
       if (fsrar) rows.push(['ФСРАР ID', esc(fsrar)]);
       if (ver) rows.push(['Версия УТМ', esc(ver)]);
-      find(r.info, /expire|validTo|notAfter|endDate/i).slice(0, 4).forEach(function (x) {
+      var seen = {};
+      find(r.info, /expire|validTo|notAfter|endDate/i).forEach(function (x) {
         var label = /gost/i.test(x.path) ? 'Сертификат ГОСТ до' : /rsa/i.test(x.path) ? 'Сертификат RSA до' : 'Действует до';
-        rows.push([label, esc(fmtDate(x.value))]);
+        var v = fmtDate(x.value);
+        if (!v || seen[label]) return;   // пустые и повторы не показываем
+        seen[label] = 1;
+        rows.push([label, esc(v)]);
       });
       if (r.outCount != null) rows.push(['Входящих документов', String(r.outCount)]);
       if (rows.length) html += '<dl class="kv">' + rows.map(function (x) { return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl>';
