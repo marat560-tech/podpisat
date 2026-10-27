@@ -22,13 +22,20 @@
 
 <div class="card" id="waybills">
   <h3>Входящие накладные</h3>
-  <p class="muted" style="margin-top:0">Накладные из вашего УТМ: от кого, номер, сумма, позиции и марки. Только просмотр — в ЕГАИС ничего не отправляется, из УТМ ничего не удаляется.</p>
+  <p class="muted" style="margin-top:0">Накладные из вашего УТМ: от кого, номер, сумма, позиции и марки. Просмотр ничего не отправляет и ничего не удаляет из УТМ. Запросы в ЕГАИС уходят только по кнопке и после подтверждения.</p>
   <div class="row tight">
     <button class="btn primary" id="wb-load" type="button">Загрузить из УТМ</button>
+    <button class="btn" id="wb-nattn" type="button">Запросить у ЕГАИС неподтверждённые</button>
     <input id="wb-q" class="search" type="search" placeholder="Поиск: номер, поставщик, ИНН">
   </div>
   <div id="wb-status"></div>
   <div id="wb-list"></div>
+</div>
+
+<div class="card">
+  <h3>Остатки на складе</h3>
+  <p class="muted" style="margin-top:0">Из последнего ответа ЕГАИС с остатками, который лежит в УТМ. Появятся после «Загрузить из УТМ».</p>
+  <div id="rests"></div>
 </div>
 
 <div class="card">

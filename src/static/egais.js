@@ -119,6 +119,155 @@
     };
   }
 
+  // Ответ ЕГАИС на запрос неподтверждённых накладных
+  function parseNattn(doc) {
+    var r = deep(doc, 'ReplyNATTN') || deep(doc, 'ReplyNoAnswerTTN');
+    if (!r) return null;
+    return {
+      date: text(deep(r, 'ReplyDate')),
+      list: deepAll(r, 'NoAnswer').map(function (n) {
+        return {
+          wbRegId: ktext(n, 'WbRegID') || ktext(n, 'WBRegId'),
+          number: ktext(n, 'ttnNumber'),
+          date: ktext(n, 'ttnDate'),
+          shipper: ktext(n, 'Shipper')
+        };
+      })
+    };
+  }
+
+  // Остатки на складе (регистр 1)
+  function parseRests(doc) {
+    var r = deep(doc, 'ReplyRests_v2') || deep(doc, 'ReplyRests');
+    if (!r) return null;
+    var groups = {}, order = [];
+    deepAll(r, 'StockPosition').forEach(function (sp) {
+      var prod = kid(sp, 'Product');
+      var key = ktext(prod, 'AlcCode') + '|' + (ktext(prod, 'FullName') || ktext(prod, 'ShortName'));
+      if (!groups[key]) {
+        groups[key] = { name: ktext(prod, 'FullName') || ktext(prod, 'ShortName'), alccode: ktext(prod, 'AlcCode'),
+          capacity: ktext(prod, 'Capacity'), qty: 0, regs: 0 };
+        order.push(key);
+      }
+      groups[key].qty += num(ktext(sp, 'Quantity'));
+      groups[key].regs++;
+    });
+    return { date: text(deep(r, 'RestsDate')), items: order.map(function (k) { return groups[k]; }) };
+  }
+
+  // ---------------------------------------------------------------- отправка запросов в ЕГАИС
+  function xmlEsc(s) { return String(s).replace(/[<>&'"]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]; }); }
+
+  function documentsXml(inner) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<ns:Documents Version="1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+      'xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:qp="http://fsrar.ru/WEGAIS/QueryParameters">\n' +
+      '<ns:Owner><ns:FSRAR_ID>' + xmlEsc(st.fsrar) + '</ns:FSRAR_ID></ns:Owner>\n' +
+      '<ns:Document>' + inner + '</ns:Document>\n</ns:Documents>\n';
+  }
+
+  function queryXml(type, name, value) {
+    return documentsXml('<ns:' + type + '><qp:Parameters><qp:Parameter><qp:Name>' + xmlEsc(name) + '</qp:Name><qp:Value>' +
+      xmlEsc(value) + '</qp:Value></qp:Parameter></qp:Parameters></ns:' + type + '>');
+  }
+
+  // POST /opt/in/<тип> с полем xml_file. Ответ УТМ: <A><url>идентификатор</url>…</A> или <error>
+  function postDoc(type, xml) {
+    var fd = new FormData();
+    fd.append('xml_file', new Blob([xml], { type: 'text/xml' }), type + '.xml');
+    var opts = Object.assign({ method: 'POST', body: fd }, Utm.fetchOpts(st.origin));
+    return Utm.fetch(st.origin + '/opt/in/' + type, opts).then(function (r) {
+      return r.text().then(function (t) {
+        var err = /<error[^>]*>([\s\S]*?)<\/error>/i.exec(t);
+        if (!r.ok || err) throw new Error((err ? err[1] : 'HTTP ' + r.status).replace(/<[^>]+>/g, ' ').trim().slice(0, 300));
+        var id = /<url[^>]*>([^<]+)<\/url>/i.exec(t);
+        return id ? id[1].trim() : '';
+      });
+    });
+  }
+
+  // Окно подтверждения перед любой отправкой
+  function confirmSend(title, bodyHtml, okText) {
+    return new Promise(function (resolve) {
+      var d = document.createElement('dialog');
+      d.className = 'confirm';
+      d.innerHTML = '<h3>' + esc(title) + '</h3><div class="confirm-body">' + bodyHtml + '</div>' +
+        '<div class="row" style="justify-content:flex-end;margin-top:16px"><button type="button" class="btn" data-a="0">Отмена</button>' +
+        '<button type="button" class="btn primary" data-a="1">' + esc(okText || 'Отправить') + '</button></div>';
+      document.body.appendChild(d);
+      var done = function (v) { d.close(); d.remove(); resolve(v); };
+      d.addEventListener('click', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-a'); if (a != null) done(a === '1'); });
+      d.addEventListener('cancel', function (e) { e.preventDefault(); done(false); });
+      d.showModal();
+      d.querySelector('[data-a="0"]').focus();
+    });
+  }
+
+  function remember(key) {
+    try { var m = JSON.parse(localStorage.getItem('podp:egais:sent') || '{}'); m[key] = Date.now(); localStorage.setItem('podp:egais:sent', JSON.stringify(m)); } catch (e) { /* нет хранилища */ }
+  }
+  function sentAt(key) {
+    try { return JSON.parse(localStorage.getItem('podp:egais:sent') || '{}')[key] || 0; } catch (e) { return 0; }
+  }
+  function hhmm(t) { return new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+
+  function ensureFsrar() {
+    if (st.fsrar) return Promise.resolve(st.fsrar);
+    return Utm.fetch(st.origin + '/api/info/list', Utm.fetchOpts(st.origin)).then(function (r) { return r.json(); }).then(function (j) {
+      var id = '';
+      (function walk(o) {
+        if (!o || typeof o !== 'object' || id) return;
+        Object.keys(o).forEach(function (k) {
+          if (id) return;
+          if (/^(ownerId|fsrarId|FSRAR_ID|ClientId)$/i.test(k) && /^\d{12}$/.test(String(o[k]))) id = String(o[k]);
+          else walk(o[k]);
+        });
+      })(j);
+      if (!id) throw new Error('не удалось узнать ФСРАР ID из УТМ');
+      return (st.fsrar = id);
+    });
+  }
+
+  function askNattn() {
+    st.origin = Utm.origin();
+    ensureFsrar().then(function (id) {
+      return confirmSend('Запросить неподтверждённые накладные?',
+        '<p>В ЕГАИС уйдёт запрос списка накладных, по которым ещё нет решения (документ <code>QueryNATTN</code>) от имени ФСРАР ID <b>' + esc(id) + '</b>.</p>' +
+        '<p class="muted small">Это запрос сведений: никакие накладные он не принимает и не отклоняет. Ответ придёт в УТМ обычно за несколько минут.</p>',
+        'Отправить запрос');
+    }).then(function (ok) {
+      if (!ok) return;
+      status('wait', 'Отправляем запрос в ЕГАИС…');
+      return postDoc('QueryNATTN', queryXml('QueryNATTN', 'КОД', st.fsrar)).then(function (rid) {
+        remember('QueryNATTN');
+        status('ok', 'Запрос отправлен' + (rid ? ' (номер в УТМ: <code>' + esc(rid) + '</code>)' : '') + '. Через несколько минут нажмите «Загрузить из УТМ» — появится список неподтверждённых накладных.');
+      });
+    }).catch(function (e) {
+      status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
+    });
+  }
+
+  function askResend(item) {
+    confirmSend('Запросить накладную повторно?',
+      '<p>В ЕГАИС уйдёт запрос на повторную отправку накладной в ваш УТМ (документ <code>QueryResendDoc</code>):</p>' +
+      '<dl class="kv small"><dt>Накладная</dt><dd>№ ' + esc(item.number) + ' от ' + esc(fmtDate(item.date)) + '</dd>' +
+      '<dt>Рег. номер</dt><dd>' + esc(item.wbRegId) + '</dd><dt>Поставщик</dt><dd>ФСРАР ID ' + esc(item.shipper) + '</dd></dl>' +
+      '<p class="muted small">Это запрос сведений: накладная при этом не принимается и не отклоняется.</p>',
+      'Запросить').then(function (ok) {
+      if (!ok) return;
+      status('wait', 'Отправляем запрос…');
+      return ensureFsrar().then(function () {
+        return postDoc('QueryResendDoc', queryXml('QueryResendDoc', 'WBREGID', item.wbRegId));
+      }).then(function () {
+        remember('resend:' + item.wbRegId);
+        status('ok', 'Запрос на накладную № ' + esc(item.number) + ' отправлен. Когда она придёт в УТМ (обычно за несколько минут), нажмите «Загрузить из УТМ».');
+        render();
+      });
+    }).catch(function (e) {
+      status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
+    });
+  }
+
   // ---------------------------------------------------------------- загрузка
   function get(path) {
     var url = st.origin + path;
@@ -166,7 +315,7 @@
     $('wb-list').innerHTML = '';
     listOut().then(function (docs) {
       st.docs = docs;
-      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket)$/i.test(d.type); });
+      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN|ReplyRests_v2|ReplyRests)$/i.test(d.type); });
       status('wait', 'Документов в УТМ: ' + docs.length + '. Читаем накладные, справки и квитанции: 0 из ' + need.length + '…');
       return pool(need, function (d) {
         return get(d.path).then(function (xml) { d.xml = xml; d.dom = parseXml(xml); return d; });
@@ -174,12 +323,14 @@
         status('wait', 'Документов в УТМ: ' + docs.length + '. Читаем накладные, справки и квитанции: ' + n + ' из ' + total + '…');
       }).then(function () { return need; });
     }).then(function (need) {
-      var waybills = [], regs = [], tickets = [], failed = 0;
+      var waybills = [], regs = [], tickets = [], nattn = [], rests = [], failed = 0;
       need.forEach(function (d) {
         if (!d.dom) { failed++; return; }
         try {
           if (/^WayBill/i.test(d.type)) { var w = parseWaybill(d.dom); if (w) { w.doc = d; waybills.push(w); } }
           else if (/^FORM2REGINFO$/i.test(d.type)) { var r = parseRegInfo(d.dom); if (r) { r.doc = d; regs.push(r); } }
+          else if (/^Reply(NATTN|NoAnswerTTN)$/i.test(d.type)) { var n = parseNattn(d.dom); if (n) nattn.push(n); }
+          else if (/^ReplyRests/i.test(d.type)) { var rs = parseRests(d.dom); if (rs) rests.push(rs); }
           else { var t = parseTicket(d.dom); if (t) { t.doc = d; tickets.push(t); } }
         } catch (e) { failed++; }
       });
@@ -191,6 +342,13 @@
       });
       waybills.sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.number || '').localeCompare(a.number || ''); });
       st.waybills = waybills;
+      st.regs = regs;
+      // самые свежие ответы
+      nattn.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+      rests.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+      st.nattn = nattn[0] || null;
+      st.rests = rests[0] || null;
+      renderRests();
       st.counts = countTypes(st.docs);
       st.failed = failed;
       render();
@@ -226,7 +384,7 @@
       return [w.number, w.shipper.name, w.shipper.inn, w.reg && w.reg.wbRegId].join(' ').toLowerCase().indexOf(q) >= 0;
     });
     var counts = Object.keys(st.counts || {}).sort().map(function (k) { return esc(k) + ': ' + st.counts[k]; }).join(' · ');
-    var html = '<p class="small muted" style="margin:10px 0">Накладных: <b>' + st.waybills.length + '</b>' +
+    var html = nattnHtml() + '<p class="small muted" style="margin:10px 0">Накладных в УТМ: <b>' + st.waybills.length + '</b>' +
       (st.failed ? ' · не удалось прочитать: ' + st.failed : '') + '. Всего документов в УТМ — ' + counts + '.</p>';
     if (!list.length) {
       html += '<div class="note info">' + (st.waybills.length ? 'Ничего не найдено.' : 'Входящих накладных в УТМ нет.') + '</div>';
@@ -245,6 +403,9 @@
       '</div>';
     }).join('');
     $('wb-list').innerHTML = html;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-resend]'), function (b) {
+      b.addEventListener('click', function () { askResend(st.nattn.list[+b.getAttribute('data-resend')]); });
+    });
     Array.prototype.forEach.call(document.querySelectorAll('.wb-row'), function (b) {
       b.addEventListener('click', function () {
         var key = b.parentNode.getAttribute('data-key');
@@ -252,6 +413,43 @@
         render();
       });
     });
+  }
+
+  function nattnHtml() {
+    var asked = sentAt('QueryNATTN');
+    if (!st.nattn) {
+      return '<div class="note info" style="margin-top:12px">Списка неподтверждённых накладных от ЕГАИС в УТМ нет.' +
+        (asked ? ' Запрос отправлен ' + hhmm(asked) + ' — ответ обычно приходит за несколько минут, нажмите «Загрузить из УТМ» ещё раз.' :
+          ' Нажмите «Запросить у ЕГАИС неподтверждённые», чтобы получить его.') + '</div>';
+    }
+    var inUtm = {};
+    (st.regs || []).forEach(function (r) { inUtm[r.wbRegId] = 1; });
+    var items = st.nattn.list;
+    var html = '<div class="nattn"><p style="margin:12px 0 6px"><b>Ждут решения по данным ЕГАИС: ' + items.length + '</b>' +
+      ' <span class="muted small">(ответ ЕГАИС от ' + esc(fmtDate(st.nattn.date)) + ')</span></p>';
+    if (!items.length) return html + '<div class="note ok">Неподтверждённых накладных нет.</div></div>';
+    html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Номер</th><th>Поставщик (ФСРАР ID)</th><th>Рег. номер</th><th></th></tr></thead><tbody>' +
+      items.map(function (it, i) {
+        var t = sentAt('resend:' + it.wbRegId);
+        var act = inUtm[it.wbRegId] ? '<span class="tag live">есть в УТМ</span>' :
+          '<button type="button" class="btn sm" data-resend="' + i + '">' + (t ? 'Запросить ещё раз' : 'Запросить накладную') + '</button>' +
+          (t ? '<div class="muted small">запрошена ' + hhmm(t) + '</div>' : '');
+        return '<tr><td>' + esc(fmtDate(it.date)) + '</td><td>' + esc(it.number) + '</td><td>' + esc(it.shipper) + '</td><td><code>' + esc(it.wbRegId) + '</code></td><td class="r">' + act + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+    return html;
+  }
+
+  function renderRests() {
+    var box = $('rests');
+    if (!box) return;
+    var r = st.rests;
+    if (!r) { box.innerHTML = '<div class="note info">Ответа с остатками в УТМ нет.</div>'; return; }
+    var total = r.items.reduce(function (s, x) { return s + x.qty; }, 0);
+    box.innerHTML = '<p class="small muted" style="margin:0 0 8px">По данным ЕГАИС на ' + esc(fmtDate(r.date)) + ' · наименований: ' + r.items.length + ' · всего: ' + qty(total) + '</p>' +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Продукция</th><th>Алкокод</th><th class="r">Объём, л</th><th class="r">Остаток</th></tr></thead><tbody>' +
+      r.items.map(function (x) {
+        return '<tr><td>' + esc(x.name) + '</td><td class="muted small">' + esc(x.alccode) + '</td><td class="r">' + esc(x.capacity) + '</td><td class="r">' + qty(x.qty) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
   }
 
   function details(w) {
@@ -281,6 +479,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     $('wb-load').addEventListener('click', load);
+    $('wb-nattn').addEventListener('click', askNattn);
     $('wb-q').addEventListener('input', function () { if (st.waybills.length) render(); });
   });
 })();
