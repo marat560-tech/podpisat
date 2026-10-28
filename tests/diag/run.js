@@ -39,15 +39,17 @@ function startSite() {
 const RT_MOCK = `(function () {
   var cfg = window.__RT || {};
   var DAY = 864e5;
-  var certs = cfg.certs || [];
+  var loads = 0;
+  // список подписей читаем при каждом обращении — тест может «вставить Рутокен» после открытия страницы
+  var C = function () { return cfg.devices === 0 ? [] : (cfg.certs || []); };
   // как настоящий плагин через адаптер — «thenable» без .catch
   var T = function (v, err) { return { then: function (ok, bad) { return err ? Promise.reject(v).then(ok, bad) : Promise.resolve(v).then(ok, bad); } }; };
   var plugin = { version: cfg.version || '4.6.0', TOKEN_INFO_LABEL: 1, TOKEN_INFO_MODEL: 2, TOKEN_INFO_SERIAL: 3, CERT_CATEGORY_USER: 1, DATA_FORMAT_BASE64: 2, errorCodes: {},
     enumerateDevices: function () { return T(cfg.devices === 0 ? [] : [0]); },
     getDeviceInfo: function (d, k) { return T(k === 2 ? 'Рутокен ЭЦП 3.0' : k === 3 ? '0123456789' : 'Тест'); },
-    enumerateCertificates: function () { return T(certs.map(function (c, i) { return 'c' + i; })); },
+    enumerateCertificates: function () { return T(C().map(function (c, i) { return 'c' + i; })); },
     parseCertificate: function (d, id) {
-      var c = certs[+id.slice(1)];
+      var c = C()[+id.slice(1)];
       var subj = [{ rdn: 'commonName', value: c.cn }, { rdn: 'surname', value: c.cn.split(' ')[0] }, { rdn: 'givenName', value: c.cn.split(' ').slice(1).join(' ') }];
       if (c.org) subj.push({ rdn: 'organizationName', value: c.org });
       if (c.region) subj.push({ rdn: 'stateOrProvinceName', value: c.region });
@@ -56,12 +58,13 @@ const RT_MOCK = `(function () {
       return T({ subject: subj, issuer: [{ rdn: 'commonName', value: c.issuer || 'Федеральная налоговая служба' }], serialNumber: '01',
         validNotBefore: new Date(Date.now() - 300 * DAY).toISOString(), validNotAfter: new Date(Date.now() + c.days * DAY + 3600e3).toISOString() });
     },
-    getKeyByCertificate: function (d, id) { var c = certs[+id.slice(1)]; return c.noKey ? T(new Error('no key'), true) : T('k' + id); }
+    getKeyByCertificate: function (d, id) { var c = C()[+id.slice(1)]; return c.noKey ? T(new Error('no key'), true) : T('k' + id); }
   };
   window.rutoken = { ready: Promise.resolve(),
     isExtensionInstalled: function () { return T(cfg.ext !== false); },
     isPluginInstalled: function () { return T(cfg.plugin !== false); },
-    loadPlugin: function () { return T(plugin); } };
+    // повторное подключение плагина на той же странице не отвечает — как может вести себя настоящий
+    loadPlugin: function () { return ++loads > 1 ? new Promise(function () {}) : T(plugin); } };
 })();`;
 
 const CP_MOCK = `(function () {
@@ -162,6 +165,31 @@ const TAT = '16 Республика Татарстан (Татарстан)';
       check('на телефоне не предлагаем удалённую помощь', r.offer.trim() === '', r.offer);
     }, { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', viewport: { width: 390, height: 844 } }]
   ];
+  // Рутокен вставили после открытия страницы → «Проверить ещё раз» должно его найти без перезагрузки
+  try {
+    const r = await run(browser, site, 'Рутокен вставили после открытия страницы', { rt: { devices: 0 } });
+    check('сначала «Рутокен не найден»', /Рутокен не найден/.test(r.list), r.list);
+    check('кнопка — «Проверить ещё раз»', (await r.page.innerText('#diag-go')) === 'Проверить ещё раз');
+    await r.page.evaluate(() => { window.__RT.devices = 1; window.__RT.certs = [{ cn: 'Иванов Иван', days: 200 }]; });
+    await r.page.click('#diag-go');
+    await r.page.waitForFunction(() => /Всё готово|не получится/.test(document.getElementById('diag-verdict').innerText) && !document.getElementById('diag-go').disabled, null, { timeout: 30000 }).catch(() => {});
+    const v = await r.page.innerText('#diag-verdict'), l = await r.page.innerText('#diag-list');
+    check('после «Проверить ещё раз» Рутокен найден', /Рутокен ЭЦП 3.0/.test(l) && /Иванов Иван/.test(l), l);
+    check('вывод: всё готово', /Всё готово к подписи/.test(v), v);
+    check('без ошибок на странице', !r.page.errors.length, r.page.errors.join('\n'));
+    await r.page.context().close();
+  } catch (e) { check('повторная проверка — сценарий упал', false, e && e.stack || e); }
+
+  // Расширение не установлено → кнопка «Обновить страницу» и правда перезагружает
+  try {
+    const r = await run(browser, site, 'Расширение ставят после открытия страницы', { rt: { ext: false } });
+    check('кнопка — «Обновить страницу»', (await r.page.innerText('#diag-go')) === 'Обновить страницу');
+    check('подсказка, что нужно обновить страницу', /страницу нужно обновить/.test(r.verdict), r.verdict);
+    await Promise.all([r.page.waitForNavigation({ timeout: 10000 }), r.page.click('#diag-go')]);
+    check('страница перезагрузилась', /\/diagnostics$/.test(r.page.url()));
+    await r.page.context().close();
+  } catch (e) { check('кнопка «Обновить страницу» — сценарий упал', false, e && e.stack || e); }
+
   for (const [name, cfg, assert, ctxOpts] of cases) {
     try {
       const r = await run(browser, site, name, cfg, ctxOpts);

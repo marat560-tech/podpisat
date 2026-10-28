@@ -15,6 +15,30 @@
   var CP_PLUGIN = 'https://www.cryptopro.ru/products/cades/plugin';
   var CP_EXT = 'https://chromewebstore.google.com/detail/iifchhfnnmpdbibifmljnfjhpififfog';
   var run = 0;
+  var rtLoad = null;          // Рутокен Плагин подключаем один раз на страницу — повторная загрузка может зависнуть
+  var needReload = false;     // расширение/плагин ставили после открытия страницы — поможет только перезагрузка
+
+  function loadRutoken() {
+    if (rtLoad) return rtLoad;
+    var chromium = !!window.chrome || /Chrome\/|Chromium|Firefox|YaBrowser|Edg\//.test(navigator.userAgent);
+    var fail = function (code) { var e = new Error(code); e.code = code; throw e; };
+    rtLoad = U.withTimeout(rutoken.ready, 8000).then(function () {
+      return chromium ? U.withTimeout(Promise.resolve(rutoken.isExtensionInstalled()), 8000) : true;
+    }).then(function (ext) {
+      if (!ext) fail('noext');
+      return U.withTimeout(Promise.resolve(rutoken.isPluginInstalled()), 8000);
+    }).then(function (inst) {
+      if (!inst) fail('noplugin');
+      return U.withTimeout(Promise.resolve(rutoken.loadPlugin()), 15000);
+    }).then(function (plugin) {
+      return { plugin: plugin, p: U.promisifyPlugin(plugin), chromium: chromium };
+    });
+    rtLoad.catch(function (e) {
+      if (e && (e.code === 'noext' || e.code === 'noplugin')) needReload = true;
+      rtLoad = null;          // в следующий раз попробуем снова (после перезагрузки)
+    });
+    return rtLoad;
+  }
 
   // ---------------------------------------------------------------- браузер
   function browserInfo() {
@@ -159,24 +183,10 @@
         cExt.state = cRt.state = 'err'; cExt.text = cRt.text = 'Не удалось загрузить модуль проверки.'; cDev.state = 'skip'; cDev.text = 'Не проверяли.';
         return Promise.resolve();
       }
-      var chromium = !!window.chrome || /Chrome\/|Chromium|Firefox|YaBrowser|Edg\//.test(navigator.userAgent);
-      return U.withTimeout(rutoken.ready, 8000).then(function () {
-        return chromium ? rutoken.isExtensionInstalled() : true;
-      }).then(function (ext) {
-        if (!ext) {
-          cExt.state = 'err'; cExt.text = 'Не установлено.'; cExt.fix = '<a href="' + RT_EXT + '" target="_blank" rel="noopener">Установить расширение</a> (бесплатно, из магазина расширений), затем обновите эту страницу.';
-          throw new Error('noext');
-        }
-        cExt.state = 'ok'; cExt.text = chromium ? 'Установлено.' : 'Для этого браузера не нужно.';
-        return rutoken.isPluginInstalled();
-      }).then(function (inst) {
-        if (!inst) {
-          cRt.state = 'err'; cRt.text = 'Не установлен.'; cRt.fix = '<a href="' + RT_PLUGIN + '" target="_blank" rel="noopener">Скачать Рутокен Плагин</a>, установить, закрыть и снова открыть браузер.';
-          throw new Error('noplugin');
-        }
-        return rutoken.loadPlugin();
-      }).then(function (plugin) {
-        var p = r.rt = U.promisifyPlugin(plugin);
+      return loadRutoken().then(function (x) {
+        var plugin = x.plugin;
+        cExt.state = 'ok'; cExt.text = x.chromium ? 'Установлено.' : 'Для этого браузера не нужно.';
+        var p = r.rt = x.p;
         cRt.state = 'ok'; cRt.text = 'Установлен' + (plugin.version ? ', версия ' + esc(plugin.version) : '') + '.';
         if (typeof plugin.DATA_FORMAT_BASE64 === 'undefined') { cRt.state = 'warn'; cRt.fix = 'Версия устарела — <a href="' + RT_PLUGIN + '" target="_blank" rel="noopener">обновите Рутокен Плагин</a>.'; }
         render(r);
@@ -195,7 +205,16 @@
         });
       }).catch(function (e) {
         var m = e && e.message;
-        if (m === 'timeout') { cExt.state = 'err'; cExt.text = 'Модуль Рутокена не ответил.'; cExt.fix = 'Обновите страницу. Если не помогло — переустановите расширение.'; }
+        if (m === 'noext') {
+          cExt.state = 'err'; cExt.text = 'Не установлено.';
+          cExt.fix = '<a href="' + RT_EXT + '" target="_blank" rel="noopener">Установить расширение</a> (бесплатно, из магазина расширений), затем нажмите «Обновить страницу».';
+        } else if (m === 'noplugin') { cExt.state = 'ok'; cExt.text = 'Установлено.'; }
+        else if (cExt.state === 'wait') { cExt.state = 'skip'; cExt.text = 'Не удалось проверить — модуль Рутокена не ответил.'; }
+        if (m === 'noplugin') {
+          cRt.state = 'err'; cRt.text = 'Не установлен.';
+          cRt.fix = '<a href="' + RT_PLUGIN + '" target="_blank" rel="noopener">Скачать Рутокен Плагин</a>, установить, закрыть и снова открыть браузер.';
+        }
+        if (m === 'timeout') { cRt.state = 'err'; cRt.text = 'Рутокен Плагин не ответил.'; cRt.fix = 'Обновите страницу. Если не помогло — закройте и снова откройте браузер или переустановите Рутокен Плагин.'; needReload = true; }
         if (cRt.state === 'wait') { cRt.state = 'skip'; cRt.text = 'Не проверяли — сначала расширение.'; }
         if (m !== 'noext' && m !== 'noplugin' && m !== 'timeout' && cRt.state !== 'err') { cRt.state = 'err'; cRt.text = 'Ошибка: ' + esc(m || e); }
         cDev.state = 'skip'; cDev.text = 'Не проверяли — нужен Рутокен Плагин.';
@@ -252,7 +271,12 @@
       r.done = true;
       render(r);
       verdict(r);
-    }).then(function () { $('diag-go').disabled = false; }, function (e) { $('diag-go').disabled = false; throw e; });
+    }).then(done, function (e) { done(); throw e; });
+    function done() {
+      $('diag-go').disabled = false;
+      $('diag-go').textContent = needReload ? 'Обновить страницу' : 'Проверить ещё раз';
+      if (needReload) $('diag-verdict').insertAdjacentHTML('beforeend', '<div class="small muted" style="margin-top:6px">После установки расширения или плагина страницу нужно обновить — кнопка «Обновить страницу» вверху.</div>');
+    }
   }
 
   // ---------------------------------------------------------------- вывод и предложения
@@ -315,7 +339,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    $('diag-go').addEventListener('click', check);
+    $('diag-go').addEventListener('click', function () { if (needReload) location.reload(); else check(); });
     $('diag-copy').addEventListener('click', function () {
       navigator.clipboard.writeText($('diag-report-text').textContent).then(function () { $('diag-copy').textContent = 'Скопировано'; }, function () {});
     });
