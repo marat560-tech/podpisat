@@ -378,3 +378,7 @@ dialog.confirm h3 { margin: 0 0 10px; font-size: 19px; }
 .sub-note .muted, .note .muted { color: inherit; opacity: .8; }
 .confirm-body .note { margin: 0 0 10px; font-size: 14px; }
 .plain-list { margin: 0 0 10px; padding-left: 20px; } .plain-list li { margin: 4px 0; }
+.rs + .rs { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rs-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.rs .sub-note { margin: 6px 0; }
+.rs details.more-opts { margin-top: 6px; }

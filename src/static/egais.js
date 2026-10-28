@@ -55,6 +55,8 @@
 
   function num(s) { var v = parseFloat(String(s || '').replace(',', '.')); return isNaN(v) ? 0 : v; }
   function money(v) { return v.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'; }
+  function plural(n, a, b, c) { var m = n % 100, k = n % 10; return n + ' ' + (m > 10 && m < 20 ? c : k === 1 ? a : k >= 2 && k <= 4 ? b : c); }
+  function liters(s) { return s ? qty(num(s)) : ''; }
   function qty(v) { return v.toLocaleString('ru-RU', { maximumFractionDigits: 4 }); }
   function fmtDate(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
@@ -140,11 +142,15 @@
   }
 
   // Остатки на складе (регистр 1)
+  // Остатки: склад (регистр 1, ReplyRests_v2 → StockPosition) и торговый зал (регистр 2, ReplyRestsShop_v2 → ShopPosition)
   function parseRests(doc) {
-    var r = deep(doc, 'ReplyRests_v2') || deep(doc, 'ReplyRests');
+    var shop = deep(doc, 'ReplyRestsShop_v2') || deep(doc, 'ReplyRestsShop');
+    var r = shop || deep(doc, 'ReplyRests_v2') || deep(doc, 'ReplyRests');
     if (!r) return null;
     var groups = {}, order = [];
-    deepAll(r, 'StockPosition').forEach(function (sp) {
+    var positions = deepAll(r, shop ? 'ShopPosition' : 'StockPosition');
+    if (!positions.length) positions = deepAll(r, 'Quantity').map(function (q) { return q.parentNode; }).filter(function (p) { return kid(p, 'Product'); });
+    positions.forEach(function (sp) {
       var prod = kid(sp, 'Product');
       var key = ktext(prod, 'AlcCode') + '|' + (ktext(prod, 'FullName') || ktext(prod, 'ShortName'));
       if (!groups[key]) {
@@ -155,7 +161,7 @@
       groups[key].qty += num(ktext(sp, 'Quantity'));
       groups[key].regs++;
     });
-    return { date: text(deep(r, 'RestsDate')), items: order.map(function (k) { return groups[k]; }) };
+    return { shop: !!shop, date: text(deep(r, 'RestsDate')), items: order.map(function (k) { return groups[k]; }) };
   }
 
   // ---------------------------------------------------------------- отправка запросов в ЕГАИС
@@ -218,6 +224,8 @@
   function sentInfo(key) { var v = sentMap()[key]; return v ? (typeof v === 'number' ? { t: v } : v) : null; }
   function sentAt(key) { var v = sentInfo(key); return v ? v.t : 0; }
   function hhmm(t) { return new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  // Квитанция — ответ на запрос, отправленный с этого компьютера через сайт?
+  function ours(t) { var m = sentMap(); return Object.keys(m).some(function (k) { return m[k] && sameId(m[k].id, t.transportId); }); }
   function sameId(a, b) { return !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase(); }
 
   // Время из документов ЕГАИС: «2026-10-27T20:47:12.123» — без часового пояса, читаем как местное
@@ -242,7 +250,8 @@
     if (/QueryResendDoc/i.test(dt) && /не найден/i.test(c))
       return 'ЕГАИС не нашёл эту накладную для повторной отправки.';
     if (/QueryRest/i.test(dt) && LIMIT_WORDS.test(c))
-      return 'ЕГАИС ограничивает, как часто можно запрашивать остатки, и этот запрос пришёл раньше срока. Сайт остатки не запрашивает — этот запрос отправила другая программа, подключённая к УТМ.';
+      return 'ЕГАИС ограничивает, как часто можно запрашивать остатки, и этот запрос пришёл раньше срока. Повторите позже.' +
+        (ours(t) ? '' : ' Этот запрос отправил не наш сайт, а другая программа, подключённая к УТМ.');
     if (/^Query/i.test(dt) && LIMIT_WORDS.test(c))
       return 'ЕГАИС ограничивает, как часто можно отправлять такой запрос. Повторите позже.';
     return '';
@@ -334,7 +343,7 @@
 
   function busy(on) {
     st.busy = on;
-    Array.prototype.forEach.call(document.querySelectorAll('#wb-nattn, [data-act], [data-resend]'), function (b) { b.disabled = on; });
+    Array.prototype.forEach.call(document.querySelectorAll('#wb-nattn, [data-act], [data-resend], [data-rests]'), function (b) { b.disabled = on; });
   }
 
   function askNattn() {
@@ -443,7 +452,7 @@
     $('wb-list').innerHTML = '';
     return listOut().then(function (docs) {
       st.docs = docs;
-      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN|ReplyRests_v2|ReplyRests)$/i.test(d.type); });
+      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN|ReplyRests_v2|ReplyRests|ReplyRestsShop_v2)$/i.test(d.type); });
       status('wait', 'Документов в УТМ: ' + docs.length + '. Читаем накладные, справки и квитанции: 0 из ' + need.length + '…');
       return pool(need, function (d) {
         return get(d.path).then(function (xml) { d.xml = xml; d.dom = parseXml(xml); return d; });
@@ -477,11 +486,13 @@
       nattn.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
       rests.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
       st.nattn = nattn[0] || null;
-      st.rests = rests[0] || null;
-      renderRests();
+      st.rests = rests.filter(function (x) { return !x.shop; })[0] || null;
+      st.restsShop = rests.filter(function (x) { return x.shop; })[0] || null;
       st.counts = countTypes(st.docs);
       st.failed = failed;
       st.loadedAt = Date.now();
+      rsStatus();
+      renderRests();
       render();
       status();
     }).catch(function (e) {
@@ -694,18 +705,88 @@
     return null;
   }
 
+  // ---------------------------------------------------------------- остатки: склад и торговый зал
+  var RESTS = {
+    stock: { type: 'QueryRests_v2', title: 'Склад', reg: 'регистр 1', what: 'остатки склада', data: function () { return st.rests; } },
+    shop: { type: 'QueryRestsShop_v2', title: 'Торговый зал', reg: 'регистр 2', what: 'остатки торгового зала', data: function () { return st.restsShop; } }
+  };
+
+  // Наш запрос остатков: ждём ответа / ЕГАИС отказал / уже ответил
+  function restsQuery(kind) {
+    var R = RESTS[kind], mine = sentInfo(R.type);
+    if (!mine || Date.now() - mine.t > 24 * 3600 * 1000) return null;
+    var d = R.data(), at = d && when(d.date);
+    if (at && at.exact && at.t >= mine.t - 60000) return null;           // ответ уже пришёл
+    var tk = (st.tickets || []).find(function (t) { return sameId(t.transportId, mine.id); });
+    if (tk && rejected(tk)) return { kind: 'wait', html: '<b>ЕГАИС отклонил запрос ' + esc(hhmm(mine.t)) + ':</b> ' + esc(explain(tk) || tk.comment || 'причина не указана') +
+      (explain(tk) && tk.comment ? ' <span class="muted">Текст ЕГАИС: ' + esc(tk.comment) + '</span>' : '') };
+    return { kind: 'wait', pending: true, html: 'Запрос отправлен ' + esc(hhmm(mine.t)) + (mine.uncertain ? ' (ответа УТМ не дождались)' : '') +
+      ', ответа ЕГАИС пока нет. Обычно он приходит за несколько минут — нажмите «Загрузить из УТМ» вверху страницы.' };
+  }
+
+  function restsBlock(kind) {
+    var R = RESTS[kind], r = R.data(), q = restsQuery(kind);
+    var at = r && when(r.date);
+    var head = '<div class="rs-head"><div><b>' + R.title + '</b> <span class="muted small">(' + R.reg + ')</span><div class="small muted">' +
+      (r ? 'Ответ ЕГАИС от ' + esc(at ? whenText(at) : fmtDate(r.date)) + ' · ' + plural(r.items.length, 'наименование', 'наименования', 'наименований') :
+        st.loadedAt ? 'Ответа ЕГАИС в УТМ нет' : 'Нажмите «Загрузить из УТМ» вверху — покажем последний ответ ЕГАИС') + '</div></div>' +
+      '<button type="button" class="btn sm" data-rests="' + kind + '"' + (st.busy ? ' disabled' : '') + '>Запросить свежие</button></div>';
+    var notes = '';
+    if (q) notes += '<div class="sub-note ' + q.kind + '">' + q.html + '</div>';
+    else if (at && Date.now() - at.t > 24 * 3600 * 1000) notes += '<div class="sub-note">Этому ответу больше суток — остатки могли измениться. Чтобы увидеть актуальные, нажмите «Запросить свежие».</div>';
+    var table = '';
+    if (r && r.items.length) {
+      var total = r.items.reduce(function (s, x) { return s + x.qty; }, 0);
+      table = '<details class="more-opts"' + (r.items.length <= 15 ? ' open' : '') + '><summary>Показать: ' + plural(r.items.length, 'наименование', 'наименования', 'наименований') + ', всего ' + qty(total) + '</summary>' +
+        '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Продукция</th><th class="r">Объём, л</th><th class="r">Остаток</th></tr></thead><tbody>' +
+        r.items.map(function (x) {
+          return '<tr><td>' + esc(x.name) + '<div class="muted small">' + esc(x.alccode) + '</div></td><td class="r">' + esc(liters(x.capacity)) + '</td><td class="r"><b>' + qty(x.qty) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div></details>';
+    } else if (r) table = '<div class="sub-note">По данным ЕГАИС остатков нет.</div>';
+    return '<div class="rs">' + head + notes + table + '</div>';
+  }
+
   function renderRests() {
     var box = $('rests');
     if (!box) return;
-    var r = st.rests;
-    if (!r) { box.innerHTML = '<div class="note info">Ответа с остатками в УТМ нет.</div>'; return; }
-    var total = r.items.reduce(function (s, x) { return s + x.qty; }, 0);
-    box.innerHTML = '<p class="small muted" style="margin:0 0 8px">По данным ЕГАИС на ' + esc(fmtDate(r.date)) + ' · наименований: ' + r.items.length + ' · всего: ' + qty(total) + '</p>' +
-      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Продукция</th><th>Алкокод</th><th class="r">Объём, л</th><th class="r">Остаток</th></tr></thead><tbody>' +
-      r.items.map(function (x) {
-        return '<tr><td>' + esc(x.name) + '</td><td class="muted small">' + esc(x.alccode) + '</td><td class="r">' + esc(x.capacity) + '</td><td class="r">' + qty(x.qty) + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    box.innerHTML = restsBlock('stock') + restsBlock('shop');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-rests]'), function (b) {
+      b.addEventListener('click', function () { askRests(b.getAttribute('data-rests')); });
+    });
   }
+
+  function askRests(kind) {
+    if (st.busy || st.asking) return;
+    var R = RESTS[kind];
+    st.asking = true;
+    st.origin = Utm.origin();
+    ensureFsrar().then(function (id) {
+      var q = restsQuery(kind);
+      return confirmSend('Запросить ' + R.what + '?',
+        '<p>В ЕГАИС уйдёт запрос остатков (документ <code>' + R.type + '</code>) от имени ФСРАР ID <b>' + esc(id) + '</b>.</p>' +
+        (q && q.pending ? '<div class="note wait">Вы уже запросили их ' + esc(hhmm(sentInfo(R.type).t)) + ', ответа ЕГАИС пока нет — возможно, лучше сначала нажать «Загрузить из УТМ».</div>' : '') +
+        '<p class="muted small">Это запрос сведений: остатки он не меняет. Ответ придёт в УТМ обычно за несколько минут. ЕГАИС ограничивает, как часто можно запрашивать остатки: если запросить слишком рано, придёт отказ — он ничего не ломает.</p>',
+        'Отправить запрос');
+    }).then(function (ok) {
+      st.asking = false;
+      if (!ok) return;
+      rsStatus('wait', 'Отправляем запрос в ЕГАИС… ' + SENDING);
+      busy(true);
+      return postDoc(R.type, documentsXml('<ns:' + R.type + '></ns:' + R.type + '>')).then(function (rid) {
+        remember(R.type, { id: rid });
+        rsStatus('ok', 'Запрос отправлен. Через несколько минут нажмите «Загрузить из УТМ» вверху страницы — появятся свежие ' + R.what + ' или причина отказа ЕГАИС.');
+      });
+    }).catch(function (e) {
+      st.asking = false;
+      if (e && e.uncertain) {
+        remember(R.type, { uncertain: true });
+        rsStatus('wait', esc(e.message) + '. Запрос, скорее всего, ушёл — подождите несколько минут и нажмите «Загрузить из УТМ».');
+      } else rsStatus('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
+    }).then(function () { busy(false); renderRests(); });
+  }
+
+  function rsStatus(kind, html) { var b = $('rs-status'); if (b) b.innerHTML = html ? '<div class="note ' + kind + '">' + html + '</div>' : ''; }
+
 
   function actButtons(w) {
     if (!w.reg) return '<p class="small muted" style="margin-top:10px">Принять или отказать можно после того, как в УТМ придёт справка о регистрации накладной в ЕГАИС.</p>';
@@ -747,5 +828,6 @@
     $('wb-load').addEventListener('click', load);
     $('wb-nattn').addEventListener('click', askNattn);
     $('wb-q').addEventListener('input', function () { if (st.waybills.length) render(); });
+    renderRests();
   });
 })();
