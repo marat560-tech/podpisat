@@ -369,3 +369,12 @@ dialog.confirm h3 { margin: 0 0 10px; font-size: 19px; }
 .act-row { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .tickets .tag { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
 .tickets tr.mine td { background: var(--wait-bg); }
+.nattn tr.has-sub td { border-bottom: 0; }
+.nattn tr.sub td { padding-top: 0; }
+.sub-note { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--soon-bg); overflow-wrap: anywhere; }
+.sub-note.bad { background: var(--err-bg); color: var(--err); }
+.sub-note.ok { background: var(--ok-bg); color: var(--ok); }
+.sub-note.wait { background: var(--wait-bg); color: var(--wait); }
+.sub-note .muted, .note .muted { color: inherit; opacity: .8; }
+.confirm-body .note { margin: 0 0 10px; font-size: 14px; }
+.plain-list { margin: 0 0 10px; padding-left: 20px; } .plain-list li { margin: 4px 0; }

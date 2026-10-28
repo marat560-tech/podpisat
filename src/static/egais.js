@@ -1,6 +1,6 @@
-/* подписатьэцп.рф — ЕГАИС: входящие накладные (только просмотр).
+/* подписатьэцп.рф — ЕГАИС: входящие накладные, приёмка и отказ, запросы в ЕГАИС.
  * Читает из УТМ: список /opt/out, документы WayBill_v4 (ТТН), FORM2REGINFO (справка о регистрации
- * ТТН в ЕГАИС, там WBRegId) и Ticket (квитанции). Ничего не отправляет и ничего не удаляет из УТМ.
+ * ТТН в ЕГАИС, там WBRegId) и Ticket (квитанции). Отправляет только по кнопке и после подтверждения; из УТМ ничего не удаляет.
  * Разбор XML — по локальным именам элементов, без привязки к префиксам пространств имён.
  */
 (function () {
@@ -218,6 +218,102 @@
   function sentInfo(key) { var v = sentMap()[key]; return v ? (typeof v === 'number' ? { t: v } : v) : null; }
   function sentAt(key) { var v = sentInfo(key); return v ? v.t : 0; }
   function hhmm(t) { return new Date(t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+  function sameId(a, b) { return !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase(); }
+
+  // Время из документов ЕГАИС: «2026-10-27T20:47:12.123» — без часового пояса, читаем как местное
+  function when(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(String(s || ''));
+    if (!m) return null;
+    return { t: new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)).getTime(), exact: !!m[4] };
+  }
+  function whenText(w) { return w.exact ? hhmm(w.t) : fmtDate(new Date(w.t).toISOString()); }
+  function rejected(t) { return /reject|отклон|отказ|ошиб|error/i.test(t.conclusion); }
+  function accepted(t) { return /accept|успеш|подтвержд/i.test(t.conclusion); }
+  var LIMIT_WORDS = /48|час|чаще|раз в|период|интервал|лимит|огранич|позже|некоторое время|повтор/i;
+
+  // Понятное объяснение отказа ЕГАИС. Пусто — если добавить нечего, кроме текста самой квитанции.
+  function explain(t) {
+    if (!t || !rejected(t)) return '';
+    var dt = t.docType || '', c = t.comment || '';
+    if (/QueryNATTN/i.test(dt) && LIMIT_WORDS.test(c))
+      return 'список неподтверждённых накладных ЕГАИС отдаёт не чаще раза в 48 часов. Отказ ничего не ломает и счётчик не сдвигает — просто повторите позже.';
+    if (/QueryResendDoc/i.test(dt) && /повтор|некоторое время|позже/i.test(c))
+      return 'это временный отказ — ЕГАИС сейчас не может переслать накладную. Повторите запрос позже, например через час.';
+    if (/QueryResendDoc/i.test(dt) && /не найден/i.test(c))
+      return 'ЕГАИС не нашёл эту накладную для повторной отправки.';
+    if (/QueryRest/i.test(dt) && LIMIT_WORDS.test(c))
+      return 'ЕГАИС ограничивает, как часто можно запрашивать остатки, и этот запрос пришёл раньше срока. Сайт остатки не запрашивает — этот запрос отправила другая программа, подключённая к УТМ.';
+    if (/^Query/i.test(dt) && LIMIT_WORDS.test(c))
+      return 'ЕГАИС ограничивает, как часто можно отправлять такой запрос. Повторите позже.';
+    return '';
+  }
+
+  // Лимит QueryNATTN: ЕГАИС принимает его не чаще раза в 48 часов. Отклонённые попытки счётчик не сдвигают,
+  // поэтому считаем от последнего принятого запроса: квитанция «принят» или сам ответ ReplyNATTN
+  // (запрос могла отправить и другая программа — лимит общий на ФСРАР ID).
+  var NATTN_GAP = 48 * 3600 * 1000;
+  function nattnLimit() {
+    var lastOk = null, lastRej = null, tickets = st.tickets || [];
+    var bump = function (w) { if (w && (!lastOk || w.t > lastOk.t)) lastOk = w; };
+    tickets.forEach(function (t) {
+      if (!/QueryNATTN/i.test(t.docType)) return;
+      var w = when(t.date);
+      if (!w) return;
+      if (rejected(t)) { if (!lastRej || w.t > lastRej.at.t) lastRej = { at: w, ticket: t }; }
+      else if (accepted(t)) bump(w);
+    });
+    if (st.nattn) bump(when(st.nattn.date));
+    // наш запрос, по которому ещё нет ни квитанции, ни более свежего ответа
+    var mine = sentInfo('QueryNATTN'), pending = null;
+    if (mine && Date.now() - mine.t < NATTN_GAP && !tickets.some(function (t) { return sameId(t.transportId, mine.id); }) &&
+        (!lastOk || mine.t > lastOk.t)) pending = mine;
+    var now = Date.now();
+    var rej = lastRej && (!lastOk || lastRej.at.t > lastOk.t) && now - lastRej.at.t < NATTN_GAP ? lastRej : null;
+    // Отказ по лимиту в момент R значит, что принятый запрос был не раньше R−48 ч, т. е. после R+48 ч точно можно
+    var next = lastOk ? lastOk.t + NATTN_GAP : rej && explain(rej.ticket) ? rej.at.t + NATTN_GAP : 0;
+    return { lastOk: lastOk, rej: rej, pending: pending, next: next > now ? next : 0 };
+  }
+
+  function note(kind, html) { return '<div class="note ' + kind + '" style="margin-top:12px">' + html + '</div>'; }
+
+  // Пояснение под кнопкой «Запросить у ЕГАИС неподтверждённые»
+  function nattnNote() {
+    var L = nattnLimit();
+    if (L.pending && (!L.rej || L.pending.t > L.rej.at.t)) {
+      return note('wait', 'Запрос неподтверждённых отправлен ' + hhmm(L.pending.t) + (L.pending.uncertain ? ' (ответа УТМ не дождались)' : '') +
+        ', ответа ЕГАИС пока нет. Обычно он приходит за несколько минут — нажмите «Загрузить из УТМ» ещё раз. Если ЕГАИС откажет, причина появится здесь.');
+    }
+    var nextTxt = L.next ? ' Следующий запрос можно после <b>' + hhmm(L.next) + '</b>.' : '';
+    if (L.rej) {
+      var t = L.rej.ticket, why = explain(t);
+      return note(why ? 'wait' : 'err', '<b>ЕГАИС отклонил запрос ' + whenText(L.rej.at) + '</b>: ' + (why ? esc(why) : esc(t.comment || 'причина не указана')) +
+        (L.lastOk ? ' Последний принятый запрос — ' + (L.lastOk.exact ? 'около ' : '') + whenText(L.lastOk) + '.' : '') + nextTxt +
+        (why && t.comment ? '<div class="muted small" style="margin-top:4px">Текст ЕГАИС: ' + esc(t.comment) + '</div>' : ''));
+    }
+    if (L.next) {
+      return note('info', 'Последний принятый запрос неподтверждённых — ' + (L.lastOk.exact ? 'около ' : '') + whenText(L.lastOk) +
+        '. ЕГАИС принимает его не чаще раза в 48 часов.' + nextTxt);
+    }
+    return '';
+  }
+
+  // Предупреждение в окне подтверждения — не запрет: решает человек
+  function nattnWarn() {
+    var L = nattnLimit(), w = '';
+    if (L.pending) w = 'Вы уже отправили этот запрос ' + hhmm(L.pending.t) + ', ответа ЕГАИС пока нет. Если тот запрос принят, этот ЕГАИС отклонит — лучше сначала нажать «Загрузить из УТМ».';
+    else if (L.next && L.lastOk) w = 'Последний принятый запрос — ' + (L.lastOk.exact ? 'около ' : '') + whenText(L.lastOk) + '. ЕГАИС принимает его не чаще раза в 48 часов, поэтому сейчас, скорее всего, откажет. Следующий можно после ' + hhmm(L.next) + '.';
+    else if (L.next) w = 'ЕГАИС уже отклонил такой запрос ' + whenText(L.rej.at) + ': с предыдущего прошло меньше 48 часов. Точно можно после ' + hhmm(L.next) + '.';
+    return w ? '<div class="note wait">' + esc(w) + ' Отказ ничего не ломает и счётчик не сдвигает.</div>' : '';
+  }
+
+  // Последняя квитанция на повторный запрос этой накладной: по номеру нашего запроса или по рег. номеру
+  function resendTicket(it) {
+    var mine = sentInfo('resend:' + it.wbRegId);
+    return (st.tickets || []).find(function (t) {
+      return /QueryResendDoc/i.test(t.docType) && ((mine && sameId(t.transportId, mine.id)) || (t.regId && t.regId === it.wbRegId) ||
+        (t.comment && t.comment.indexOf(it.wbRegId) >= 0));
+    }) || null;
+  }
 
   function ensureFsrar() {
     if (st.fsrar) return Promise.resolve(st.fsrar);
@@ -242,25 +338,34 @@
   }
 
   function askNattn() {
-    if (st.busy) return;
+    if (st.busy || st.asking) return;
+    st.asking = true;
     st.origin = Utm.origin();
-    ensureFsrar().then(function (id) {
+    // Перед вопросом освежаем квитанции из УТМ, чтобы предупреждение о лимите было по актуальным данным
+    var fresh = st.loadedAt && Date.now() - st.loadedAt < 5 * 60000 ? Promise.resolve() : load().catch(function () {});
+    fresh.then(ensureFsrar).then(function (id) {
+      var warn = nattnWarn();
       return confirmSend('Запросить неподтверждённые накладные?',
         '<p>В ЕГАИС уйдёт запрос списка накладных, по которым ещё нет решения (документ <code>QueryNATTN</code>) от имени ФСРАР ID <b>' + esc(id) + '</b>.</p>' +
+        warn +
         '<p class="muted small">Это запрос сведений: никакие накладные он не принимает и не отклоняет. Ответ придёт в УТМ обычно за несколько минут.</p>',
-        'Отправить запрос');
+        warn ? 'Всё равно отправить' : 'Отправить запрос');
     }).then(function (ok) {
+      st.asking = false;
       if (!ok) return;
       status('wait', 'Отправляем запрос в ЕГАИС… ' + SENDING);
       busy(true);
       return postDoc('QueryNATTN', queryXml('QueryNATTN', 'КОД', st.fsrar)).then(function (rid) {
         remember('QueryNATTN', { id: rid });
-        status('ok', 'Запрос отправлен' + (rid ? ' (номер в УТМ: <code>' + esc(rid) + '</code>)' : '') + '. Через несколько минут нажмите «Загрузить из УТМ» — появится список неподтверждённых накладных.');
+        status('ok', 'Запрос отправлен' + (rid ? ' (номер в УТМ: <code>' + esc(rid) + '</code>)' : '') + '. Через несколько минут нажмите «Загрузить из УТМ» — появится список неподтверждённых накладных или причина отказа ЕГАИС.');
+        if (st.loadedAt) render();
       });
     }).catch(function (e) {
+      st.asking = false;
       if (e && e.uncertain) {
         remember('QueryNATTN', { uncertain: true });
         status('wait', esc(e.message) + '. Запрос, скорее всего, ушёл. Подождите несколько минут и нажмите «Загрузить из УТМ» — если ответ не придёт, тогда запросите ещё раз.');
+        if (st.loadedAt) render();
       } else status('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
     }).then(function () { busy(false); });
   }
@@ -332,11 +437,11 @@
 
   function load() {
     st.origin = Utm.origin();
-    if (!st.origin) { status('err', 'Сначала укажите адрес УТМ в проверке выше.'); return; }
+    if (!st.origin) { status('err', 'Сначала укажите адрес УТМ в проверке выше.'); return Promise.resolve(); }
     $('wb-load').disabled = true;
     status('wait', 'Читаем список документов из УТМ…');
     $('wb-list').innerHTML = '';
-    listOut().then(function (docs) {
+    return listOut().then(function (docs) {
       st.docs = docs;
       var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN|ReplyRests_v2|ReplyRests)$/i.test(d.type); });
       status('wait', 'Документов в УТМ: ' + docs.length + '. Читаем накладные, справки и квитанции: 0 из ' + need.length + '…');
@@ -376,6 +481,7 @@
       renderRests();
       st.counts = countTypes(st.docs);
       st.failed = failed;
+      st.loadedAt = Date.now();
       render();
       status();
     }).catch(function (e) {
@@ -543,33 +649,49 @@
         var ok = /accept|успеш|подтвержд/i.test(t.conclusion), bad = /reject|отклон|ошиб|error/i.test(t.conclusion);
         return '<tr' + (mine ? ' class="mine"' : '') + '><td>' + esc(fmtDate(t.date)) + ' ' + esc((t.date || '').slice(11, 16)) + '</td><td>' + esc(t.docType || '—') +
           (t.operation ? '<div class="muted small">' + esc(t.operation) + '</div>' : '') + (mine ? '<div class="small"><b>ваш запрос</b></div>' : '') + '</td>' +
-          '<td>' + (t.conclusion ? '<span class="tag ' + (ok ? 'live' : bad ? 'bad' : 'soon') + '">' + esc(t.conclusion) + '</span>' : '') + '</td>' +
-          '<td class="small">' + esc(t.comment) + (t.regId ? '<div class="muted">' + esc(t.regId) + '</div>' : '') + '</td></tr>';
+          '<td>' + (t.conclusion ? '<span class="tag ' + (ok ? 'live' : bad ? 'bad' : 'soon') + '" title="' + esc(t.conclusion) + '">' + esc(ok ? 'Принят' : bad ? 'Отклонён' : t.conclusion) + '</span>' : '') + '</td>' +
+          '<td class="small">' + (explain(t) ? '<div><b>' + esc(explain(t).charAt(0).toUpperCase() + explain(t).slice(1)) + '</b></div><div class="muted">Текст ЕГАИС: ' + esc(t.comment) + '</div>' : esc(t.comment)) +
+          (t.regId ? '<div class="muted">' + esc(t.regId) + '</div>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div></details>';
   }
 
   function nattnHtml() {
-    var asked = sentAt('QueryNATTN');
+    var top = nattnNote();
     if (!st.nattn) {
-      return '<div class="note info" style="margin-top:12px">Списка неподтверждённых накладных от ЕГАИС в УТМ нет.' +
-        (asked ? ' Запрос отправлен ' + hhmm(asked) + ' — ответ обычно приходит за несколько минут, нажмите «Загрузить из УТМ» ещё раз.' :
-          ' Нажмите «Запросить у ЕГАИС неподтверждённые», чтобы получить его.') + '</div>';
+      return top || note('info', 'Списка неподтверждённых накладных от ЕГАИС в УТМ нет. Нажмите «Запросить у ЕГАИС неподтверждённые», чтобы получить его.');
     }
     var inUtm = {};
     (st.regs || []).forEach(function (r) { inUtm[r.wbRegId] = 1; });
     var items = st.nattn.list;
-    var html = '<div class="nattn"><p style="margin:12px 0 6px"><b>Ждут решения по данным ЕГАИС: ' + items.length + '</b> <span class="muted small">— список номеров из ЕГАИС</span>' +
-      ' <span class="muted small">(ответ ЕГАИС от ' + esc(fmtDate(st.nattn.date)) + ')</span></p>';
+    var w = when(st.nattn.date);
+    var html = top + '<div class="nattn"><p style="margin:12px 0 6px"><b>Ждут решения по данным ЕГАИС: ' + items.length + '</b> <span class="muted small">— список номеров из ЕГАИС</span>' +
+      ' <span class="muted small">(ответ ЕГАИС от ' + esc(w ? whenText(w) : fmtDate(st.nattn.date)) + ')</span></p>';
     if (!items.length) return html + '<div class="note ok">Неподтверждённых накладных нет.</div></div>';
     html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Номер</th><th>Поставщик (ФСРАР ID)</th><th>Рег. номер</th><th></th></tr></thead><tbody>' +
       items.map(function (it, i) {
-        var t = sentAt('resend:' + it.wbRegId);
-        var act = inUtm[it.wbRegId] ? '<span class="tag live">есть в УТМ</span>' :
-          '<button type="button" class="btn sm" data-resend="' + i + '">' + (t ? 'Запросить ещё раз' : 'Запросить накладную') + '</button>' +
-          (t ? '<div class="muted small">запрошена ' + hhmm(t) + '</div>' : '');
-        return '<tr><td>' + esc(fmtDate(it.date)) + '</td><td>' + esc(it.number) + '</td><td>' + esc(it.shipper) + '</td><td><code>' + esc(it.wbRegId) + '</code></td><td class="r">' + act + '</td></tr>';
+        var has = inUtm[it.wbRegId], r = has ? null : resendState(it);
+        var act = has ? '<span class="tag live">есть в УТМ</span>' :
+          '<button type="button" class="btn sm" data-resend="' + i + '">' + (r ? 'Запросить ещё раз' : 'Запросить накладную') + '</button>';
+        return '<tr' + (r ? ' class="has-sub"' : '') + '><td>' + esc(fmtDate(it.date)) + '</td><td>' + esc(it.number) + '</td><td>' + esc(it.shipper) + '</td><td><code>' + esc(it.wbRegId) + '</code></td><td class="r">' + act + '</td></tr>' +
+          (r ? '<tr class="sub"><td colspan="5"><div class="sub-note ' + r.kind + '">' + r.html + '</div></td></tr>' : '');
       }).join('') + '</tbody></table></div></div>';
     return html;
+  }
+
+  // Что с повторным запросом этой накладной: ждём ответа, ЕГАИС принял или отказал (и почему)
+  function resendState(it) {
+    var mine = sentInfo('resend:' + it.wbRegId), tk = resendTicket(it);
+    var tkAt = tk && when(tk.date);
+    // квитанция относится к последнему запросу, если это ответ именно на него или она пришла после него
+    var current = tk && (!mine || sameId(tk.transportId, mine.id) || (tkAt && tkAt.t >= mine.t - 60000));
+    if (current && rejected(tk)) {
+      var why = explain(tk);
+      return { kind: /повтор|некоторое время|позже/i.test(tk.comment) ? 'wait' : 'bad', html: '<b>ЕГАИС отказал ' + esc(tkAt ? whenText(tkAt) : '') + ':</b> ' + esc(why || tk.comment || 'причина не указана') +
+        (why && tk.comment ? ' <span class="muted">Текст ЕГАИС: ' + esc(tk.comment) + '</span>' : '') };
+    }
+    if (current && accepted(tk)) return { kind: 'ok', html: 'ЕГАИС принял запрос ' + esc(tkAt ? whenText(tkAt) : '') + '. Накладная придёт в УТМ — нажмите «Загрузить из УТМ» через несколько минут.' };
+    if (mine) return { kind: 'wait', html: 'Запрошена ' + hhmm(mine.t) + (mine.uncertain ? ' (ответа УТМ не дождались)' : '') + ', ответа ЕГАИС пока нет.' };
+    return null;
   }
 
   function renderRests() {

@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "24"
+VERSION = "25"
 PHONE = "+7 (843) 208-53-54"
 PHONE_TEL = "+78432085354"
 SITE = "https://xn--80ahmweccok4b0dm.xn--p1ai"  # подписатьэцп.рф
@@ -30,8 +30,8 @@ SOON = {
         page_title="ЕГАИС",
         lead="Работа с ЕГАИС прямо в браузере через ваш УТМ — без платных подписок.",
         plan=[
-            "Входящие накладные: просмотр, «Принять» и «Отказать»",
-            "Остатки по складу и торговому залу",
+            "Частичная приёмка — когда пришло не столько, сколько в накладной",
+            "Остатки торгового зала",
             "Списание, в том числе маркированного алкоголя — марки подтягиваются из остатков",
             "Уведомления о новых накладных и об окончании срока ключа",
         ],
@@ -165,6 +165,8 @@ def main():
                        h4x=help4x_info()),
         "about": dict(tpl="about.html", page_title="О проекте", active="",
                       description="О проекте подписатьэцп.рф"),
+        "privacy": dict(tpl="privacy.html", page_title="Политика конфиденциальности", active="",
+                        description="Мы не собираем ваши данные: подпись, проверка и ЕГАИС работают в вашем браузере. Без регистрации, cookie, счётчиков и рекламы."),
     }
     for key, data in SOON.items():
         pages[key] = dict(tpl="egais.html" if key == "egais" else "soon.html", active=key, icon=ICONS[key],

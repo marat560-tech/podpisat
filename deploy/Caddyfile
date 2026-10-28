@@ -26,10 +26,19 @@ xn--80ahmweccok4b0dm.xn--p1ai, www.xn--80ahmweccok4b0dm.xn--p1ai {
 		file_server
 	}
 
+	# Технический журнал без персональных данных: IP-адреса и заголовки браузера не записываются
+	# (см. /privacy). Остаются время, страница, код ответа и размер — чтобы видеть ошибки.
 	log {
 		output file C:\podpisat\logs\access.log {
 			roll_size 10MiB
 			roll_keep 5
+		}
+		format filter {
+			wrap json
+			request>remote_ip delete
+			request>remote_port delete
+			request>client_ip delete
+			request>headers delete
 		}
 	}
 }
