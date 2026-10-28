@@ -165,7 +165,7 @@ def main():
         "about": dict(tpl="about.html", page_title="О проекте", active="",
                       description="О проекте подписатьэцп.рф"),
         "privacy": dict(tpl="privacy.html", page_title="Политика конфиденциальности", active="",
-                        description="Мы не собираем ваши данные: подпись, проверка и ЕГАИС работают в вашем браузере. Без регистрации, cookie, счётчиков и рекламы."),
+                        description="Мы не собираем ваши данные: подпись, проверка и ЕГАИС работают в вашем браузере. Без регистрации, cookie и счётчиков."),
     }
     for key, data in SOON.items():
         pages[key] = dict(tpl="egais.html" if key == "egais" else "soon.html", active=key, icon=ICONS[key],
