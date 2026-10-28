@@ -70,6 +70,12 @@ const RT_MOCK = `(function () {
 const CP_MOCK = `(function () {
   var cfg = window.__CP;
   if (!cfg) return;                       // КриптоПро не установлен
+  if (cfg.disabled) {                     // расширение выключено: как настоящий cadesplugin_api — обещание, которое не дождётся плагина
+    var off = new Promise(function (_, rej) { setTimeout(function () { rej(new Error('Истекло время ожидания загрузки плагина')); }, 300); });
+    off.catch(function () {});
+    window.cadesplugin = off;
+    return;
+  }
   var DAY = 864e5, P = function (v) { return Promise.resolve(v); };
   var certs = cfg.certs || [];
   var cp = Promise.resolve();
@@ -118,7 +124,7 @@ const TAT = '16 Республика Татарстан (Татарстан)';
   const cases = [
     ['Ничего не установлено', { rt: { ext: false } }, (r) => {
       check('вывод: подписать не получится', /Подписать пока не получится/.test(r.verdict), r.verdict);
-      check('главная причина — расширение', /Адаптер Рутокен Плагин/.test(r.verdict), r.verdict);
+      check('вывод объясняет оба варианта ключа', /Рутокен ЭЦП 3.0 из налоговой/.test(r.verdict) && /флешка или ключ на компьютере/.test(r.verdict) && /КриптоПро/.test(r.verdict), r.verdict);
       check('ссылка на установку расширения', /Установить расширение/.test(r.list), r.list);
       check('предложена удалённая помощь', /Подключимся удалённо/.test(r.offer), r.offer);
       check('без «есть у нас в Казани» — регион неизвестен', !/Казани/.test(r.offer), r.offer);
@@ -143,6 +149,12 @@ const TAT = '16 Республика Татарстан (Татарстан)';
     }],
     ['Срок истёк, Татарстан (по ИНН)', { rt: { certs: [{ cn: 'Галиев Марат', days: -30, innLe: '1655000001', issuer: FNS }] } }, (r) => {
       check('Татарстану предлагаем Рутокен в Казани', /Рутокен ЭЦП 3.0 — есть у нас в Казани/.test(r.offer), r.offer);
+    }],
+    ['Рутокен ЭЦП без подписей, КриптоПро выключен', { rt: { certs: [] }, cp: { disabled: true } }, (r) => {
+      check('не просто «подписей нет» — объясняем про КриптоПро', /работает через КриптоПро/.test(r.list) && /выключен/.test(r.list), r.list);
+      check('КриптоПро отмечен «!»', r.states[4] === 'warn', r.states.join(','));
+      check('вывод говорит о КриптоПро', /КриптоПро/.test(r.verdict), r.verdict);
+      check('кнопка — «Обновить страницу»', /Обновить страницу/.test(r.verdict), r.verdict);
     }],
     ['Рутокен не вставлен', { rt: { devices: 0 } }, (r) => {
       check('«Рутокен не найден» с подсказкой', /Рутокен не найден/.test(r.list) && /Вставьте Рутокен/.test(r.list), r.list);
@@ -189,6 +201,26 @@ const TAT = '16 Республика Татарстан (Татарстан)';
     check('страница перезагрузилась', /\/diagnostics$/.test(r.page.url()));
     await r.page.context().close();
   } catch (e) { check('кнопка «Обновить страницу» — сценарий упал', false, e && e.stack || e); }
+
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 1200 }, locale: 'ru-RU' });
+    await ctx.route('**/static/vendor/rutoken.min.js', (r) => r.fulfill({ contentType: 'text/javascript', body: RT_MOCK }));
+    await ctx.route('**/static/vendor/cadesplugin_api.js', (r) => r.fulfill({ contentType: 'text/javascript', body: CP_MOCK }));
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(String(e)));
+    await page.addInitScript(() => { window.__RT = { certs: [] }; window.__CP = { disabled: true }; });
+    await page.goto(site.origin + '/sign');
+    await page.setInputFiles('#file', { name: 'договор.txt', mimeType: 'text/plain', buffer: Buffer.from('test') });
+    await page.waitForSelector('#certs .note', { timeout: 20000 });
+    await page.waitForFunction(() => !/Ищем/.test(document.getElementById('cert-hint').textContent), null, { timeout: 20000 });
+    const t = await page.innerText('#certs');
+    console.log('Страница подписи: подписей нет, КриптоПро выключен');
+    check('подсказка про КриптоПро и выключенное расширение', /через КриптоПро/.test(t) && /CryptoPro Extension/.test(t), t);
+    check('ссылка «Проверить компьютер»', (await page.locator('#certs a[href="/diagnostics"]').count()) === 1);
+    check('без ошибок на странице', !errs.length, errs.join('\n'));
+    await ctx.close();
+  } catch (e) { check('страница подписи — сценарий упал', false, e && e.stack || e); }
 
   for (const [name, cfg, assert, ctxOpts] of cases) {
     try {

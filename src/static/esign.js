@@ -301,7 +301,7 @@
     var notes = (state.certNotes || []).map(function (t) { return '<div class="note wait">' + t + '</div>'; }).join('');
     if (!state.certs.length) {
       box.innerHTML = notes || (state.searching ? '' :
-        '<div class="note info">Подписей не найдено. Вставьте ключ и нажмите «Обновить список». Если ключ вставлен — проверьте плагины выше.</div>');
+        '<div class="note info">Подписей не найдено. Вставьте ключ и нажмите «Обновить список».' + missingHint() + ' <a href="/diagnostics">Проверить компьютер</a></div>');
       return;
     }
     box.innerHTML = notes + state.certs.map(function (c, i) {
@@ -319,6 +319,14 @@
         renderCerts();
       });
     });
+  }
+
+  // Чего не хватает, чтобы увидеть подпись: ключи КриптоПро не видны, пока плагин КриптоПро не найден (или выключен)
+  function missingHint() {
+    var t = [];
+    if (!state.cp) t.push('Ключ на обычном Рутокене (не ЭЦП 3.0), флешке или в компьютере работает через КриптоПро, а плагин КриптоПро сейчас не найден — возможно, выключено расширение CryptoPro Extension. Включите его (меню браузера → «Расширения») и обновите страницу.');
+    if (!state.rt) t.push('Рутокен ЭЦП 3.0 из налоговой работает через Рутокен Плагин — он сейчас не найден.');
+    return t.length ? ' ' + t.join(' ') : ' Если ключ вставлен — проверьте плагины выше.';
   }
 
   function select(c) {

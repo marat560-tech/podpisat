@@ -15,6 +15,8 @@
   var CP_PLUGIN = 'https://www.cryptopro.ru/products/cades/plugin';
   var CP_EXT = 'https://chromewebstore.google.com/detail/iifchhfnnmpdbibifmljnfjhpififfog';
   var run = 0;
+  var CP_OFF = 'Не найден: не установлен или выключено расширение CryptoPro Extension.';
+  var CP_FIX = 'Нужен, если подпись на обычном Рутокене (не ЭЦП 3.0), флешке или записана на компьютере. Проверьте, что расширение CryptoPro Extension включено (меню браузера → «Расширения»), или установите <a href="' + CP_PLUGIN + '" target="_blank" rel="noopener">КриптоПро ЭЦП Browser plug-in</a> и расширение <a href="' + CP_EXT + '" target="_blank" rel="noopener">CryptoPro Extension</a>. Затем обновите страницу.';
   var rtLoad = null;          // Рутокен Плагин подключаем один раз на страницу — повторная загрузка может зависнуть
   var needReload = false;     // расширение/плагин ставили после открытия страницы — поможет только перезагрузка
 
@@ -223,7 +225,7 @@
 
     // 5. КриптоПро
     var cpDone = (function () {
-      if (!window.cadesplugin) { cCp.state = 'skip'; cCp.text = 'Не установлен.'; return Promise.resolve(); }
+      if (!window.cadesplugin) { cCp.state = 'skip'; cCp.text = CP_OFF; cCp.fix = CP_FIX; r.cpMissing = true; return Promise.resolve(); }
       return U.withTimeout(Promise.resolve(window.cadesplugin), 10000).then(function () {
         return cadesplugin.CreateObjectAsync('CAdESCOM.About');
       }).then(function (about) {
@@ -241,8 +243,7 @@
           cCp.state = 'warn'; cCp.fix = 'КриптоПро долго не отвечает: скорее всего, открыто окно «Подтверждение доступа» за браузером. Нажмите в нём «Да» и проверьте ещё раз.';
         });
       }).catch(function () {
-        cCp.state = 'skip'; cCp.text = 'Не установлен. Нужен, только если ваша подпись работает через КриптоПро (не Рутокен из налоговой).';
-        cCp.fix = '<a href="' + CP_PLUGIN + '" target="_blank" rel="noopener">КриптоПро ЭЦП Browser plug-in</a> и расширение <a href="' + CP_EXT + '" target="_blank" rel="noopener">CryptoPro Extension</a>';
+        cCp.state = 'skip'; cCp.text = CP_OFF; cCp.fix = CP_FIX; r.cpMissing = true;
       });
     })();
 
@@ -252,9 +253,25 @@
       var certs = r.certs;
       if (!certs.length) {
         var noPlug = cRt.state !== 'ok' && cCp.state !== 'ok' && cCp.state !== 'warn';
-        cCert.state = noPlug ? 'skip' : 'err';
-        cCert.text = noPlug ? 'Не проверяли — нужен плагин.' : 'Подписей не найдено.';
-        if (!noPlug) cCert.fix = cDev.state === 'ok' ? 'Рутокен вставлен, но подписи на нём нет. Возможно, это не тот Рутокен или подпись записана на другой носитель.' : 'Вставьте ключ с подписью и нажмите «Проверить ещё раз».';
+        cCert.state = 'err';
+        if (noPlug) {
+          // ни одного плагина: какой нужен — зависит от ключа, не отправляем всех ставить Рутокен
+          r.noPlugins = true;
+          cCert.text = 'Не найден ни один плагин для подписи — подписи не видно.';
+          cCert.fix = 'Какой плагин нужен, зависит от ключа. <b>Рутокен ЭЦП 3.0 из налоговой</b> — Рутокен Плагин и расширение «Адаптер Рутокен Плагин». ' +
+            '<b>Обычный Рутокен, флешка или ключ на компьютере</b> — КриптоПро ЭЦП Browser plug-in и расширение CryptoPro Extension. ' +
+            'Если нужное уже установлено — проверьте, что расширение включено (меню браузера → «Расширения»), и обновите страницу.';
+        } else {
+          cCert.text = 'Подписей не найдено.';
+          var tips = [cDev.state === 'ok' ? 'Рутокен вставлен, но подписей для Рутокен Плагина на нём нет.' : 'Вставьте ключ с подписью и нажмите «Проверить ещё раз».'];
+          if (r.cpMissing) {
+            tips.push('Если подпись на обычном Рутокене, флешке или записана на компьютере — она работает через КриптоПро, а плагин КриптоПро сейчас не найден или выключен. Включите расширение CryptoPro Extension (меню браузера → «Расширения») и обновите страницу.');
+            cCp.state = 'warn';
+            // Рутокен не вставлен — хватит «Проверить ещё раз»; а включённое расширение КриптоПро без перезагрузки не подхватится
+            if (cDev.state !== 'err') needReload = true;
+          } else tips.push('Возможно, это не тот ключ или подпись записана на другой носитель.');
+          cCert.fix = tips.join(' ');
+        }
       } else {
         certs.forEach(function (c) { c.days = c.validTo ? daysLeft(c.validTo) : null; c.reg = regionOf(c); });
         var bad = certs.filter(function (c) { return c.days !== null && c.days < 0 || c.hasKey === false; });
@@ -275,7 +292,7 @@
     function done() {
       $('diag-go').disabled = false;
       $('diag-go').textContent = needReload ? 'Обновить страницу' : 'Проверить ещё раз';
-      if (needReload) $('diag-verdict').insertAdjacentHTML('beforeend', '<div class="small muted" style="margin-top:6px">После установки расширения или плагина страницу нужно обновить — кнопка «Обновить страницу» вверху.</div>');
+      if (needReload) $('diag-verdict').insertAdjacentHTML('beforeend', '<div class="small muted" style="margin-top:6px">Установили или включили расширение или плагин — страницу нужно обновить: кнопка «Обновить страницу» вверху.</div>');
     }
   }
 
@@ -289,7 +306,7 @@
       html = '<div class="note ok"><b>Всё готово к подписи.</b> ' + (warns.length ? 'Есть замечания — смотрите отмеченное «!» ниже. ' : '') +
         '<a href="/sign">Подписать файл</a> · <a href="/pdf">PDF со штампом</a></div>';
     } else {
-      var first = errs[0] || warns[0];
+      var first = (r.noPlugins ? r.checks[5] : errs[0]) || warns[0];
       html = '<div class="note err"><b>Подписать пока не получится.</b> ' + (first ? 'Главное: «' + esc(first.title) + '» — ' + (first.fix || first.text) : '') + '</div>';
     }
     $('diag-verdict').innerHTML = html;
