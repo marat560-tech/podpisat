@@ -144,8 +144,11 @@
   // Остатки на складе (регистр 1)
   // Остатки: склад (регистр 1, ReplyRests_v2 → StockPosition) и торговый зал (регистр 2, ReplyRestsShop_v2 → ShopPosition)
   function parseRests(doc) {
-    var shop = deep(doc, 'ReplyRestsShop_v2') || deep(doc, 'ReplyRestsShop');
-    var r = shop || deep(doc, 'ReplyRests_v2') || deep(doc, 'ReplyRests');
+    var all = doc.getElementsByTagNameNS('*', '*'), shop = null, r = null;
+    for (var i = 0; i < all.length && !r; i++) {
+      if (/^ReplyRestsShop/i.test(all[i].localName)) r = shop = all[i];
+      else if (/^ReplyRests/i.test(all[i].localName)) r = all[i];
+    }
     if (!r) return null;
     var groups = {}, order = [];
     var positions = deepAll(r, shop ? 'ShopPosition' : 'StockPosition');
@@ -452,7 +455,7 @@
     $('wb-list').innerHTML = '';
     return listOut().then(function (docs) {
       st.docs = docs;
-      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN|ReplyRests_v2|ReplyRests|ReplyRestsShop_v2)$/i.test(d.type); });
+      var need = docs.filter(function (d) { return /^(WayBill_v4|WayBill_v3|FORM2REGINFO|Ticket|ReplyNATTN|ReplyNoAnswerTTN)$/i.test(d.type) || /^ReplyRests/i.test(d.type); });
       status('wait', 'Документов в УТМ: ' + docs.length + '. Читаем накладные, справки и квитанции: 0 из ' + need.length + '…');
       return pool(need, function (d) {
         return get(d.path).then(function (xml) { d.xml = xml; d.dom = parseXml(xml); return d; });
@@ -707,7 +710,9 @@
 
   // ---------------------------------------------------------------- остатки: склад и торговый зал
   var RESTS = {
-    stock: { type: 'QueryRests_v2', title: 'Склад', reg: 'регистр 1', what: 'остатки склада', data: function () { return st.rests; } },
+    // УТМ 4.2.0 пропускает запрос остатков склада раз в сутки (по календарной дате), второй за день отклоняет сам
+    stock: { type: 'QueryRests_v2', title: 'Склад', reg: 'регистр 1', what: 'остатки склада', daily: true, data: function () { return st.rests; } },
+    // Торговый зал: пиво и слабый алкоголь туда с июля 2023 года не перемещают — нужен в основном для крепкого алкоголя
     shop: { type: 'QueryRestsShop_v2', title: 'Торговый зал', reg: 'регистр 2', what: 'остатки торгового зала', data: function () { return st.restsShop; } }
   };
 
@@ -724,16 +729,33 @@
       ', ответа ЕГАИС пока нет. Обычно он приходит за несколько минут — нажмите «Загрузить из УТМ» вверху страницы.' };
   }
 
+  function isToday(t) { var a = new Date(t), b = new Date(); return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  // Склад сегодня уже запрашивали (наш запрос или ответ ЕГАИС с сегодняшней датой)
+  function askedToday(kind) {
+    var R = RESTS[kind], r = R.data(), at = r && when(r.date), mine = sentInfo(R.type);
+    if (!R.daily) return 0;
+    if (at && at.exact && isToday(at.t)) return at.t;
+    return mine && isToday(mine.t) ? mine.t : 0;
+  }
+  var SHOP_HINT = 'Нужен в основном для крепкого алкоголя: пиво и слабоалкогольные напитки в торговый зал с июля 2023 года не перемещают.';
+
   function restsBlock(kind) {
     var R = RESTS[kind], r = R.data(), q = restsQuery(kind);
     var at = r && when(r.date);
+    if (kind === 'shop' && !(r && r.items.length) && !q) {
+      return '<div class="rs"><div class="rs-head"><div><b>' + R.title + '</b> <span class="muted small">(' + R.reg + ')</span><div class="small muted">' + SHOP_HINT +
+        (r ? ' По данным ЕГАИС остатков в зале нет' + (at ? ' (ответ от ' + esc(whenText(at)) + ')' : '') + '.' : st.loadedAt ? ' Ответа ЕГАИС по залу в УТМ нет.' : '') + '</div></div>' +
+        '<button type="button" class="btn sm" data-rests="shop"' + (st.busy ? ' disabled' : '') + '>Запросить</button></div></div>';
+    }
     var head = '<div class="rs-head"><div><b>' + R.title + '</b> <span class="muted small">(' + R.reg + ')</span><div class="small muted">' +
       (r ? 'Ответ ЕГАИС от ' + esc(at ? whenText(at) : fmtDate(r.date)) + ' · ' + plural(r.items.length, 'наименование', 'наименования', 'наименований') :
         st.loadedAt ? 'Ответа ЕГАИС в УТМ нет' : 'Нажмите «Загрузить из УТМ» вверху — покажем последний ответ ЕГАИС') + '</div></div>' +
       '<button type="button" class="btn sm" data-rests="' + kind + '"' + (st.busy ? ' disabled' : '') + '>Запросить свежие</button></div>';
     var notes = '';
     if (q) notes += '<div class="sub-note ' + q.kind + '">' + q.html + '</div>';
-    else if (at && Date.now() - at.t > 24 * 3600 * 1000) notes += '<div class="sub-note">Этому ответу больше суток — остатки могли измениться. Чтобы увидеть актуальные, нажмите «Запросить свежие».</div>';
+    else if (askedToday(kind)) notes += '<div class="sub-note">Сегодняшний ответ ЕГАИС уже есть. Остатки склада можно запрашивать раз в сутки — следующий запрос завтра.</div>';
+    else if (at && Date.now() - at.t > 24 * 3600 * 1000) notes += '<div class="sub-note">Этому ответу больше суток — остатки могли измениться. Чтобы увидеть актуальные, нажмите «Запросить свежие» (не чаще раза в сутки).</div>';
+    if (kind === 'shop') notes = '<div class="small muted" style="margin:-4px 0 6px">' + SHOP_HINT + '</div>' + notes;
     var table = '';
     if (r && r.items.length) {
       var total = r.items.reduce(function (s, x) { return s + x.qty; }, 0);
@@ -761,12 +783,15 @@
     st.asking = true;
     st.origin = Utm.origin();
     ensureFsrar().then(function (id) {
-      var q = restsQuery(kind);
+      var q = restsQuery(kind), today = askedToday(kind), warn = '';
+      if (q && q.pending) warn = 'Вы уже запросили их ' + hhmm(sentInfo(R.type).t) + ', ответа ЕГАИС пока нет — возможно, лучше сначала нажать «Загрузить из УТМ».';
+      else if (today) warn = 'Сегодня остатки склада уже запрашивали (' + hhmm(today) + '). Второй запрос за день УТМ не пропустит — повторите завтра.';
       return confirmSend('Запросить ' + R.what + '?',
         '<p>В ЕГАИС уйдёт запрос остатков (документ <code>' + R.type + '</code>) от имени ФСРАР ID <b>' + esc(id) + '</b>.</p>' +
-        (q && q.pending ? '<div class="note wait">Вы уже запросили их ' + esc(hhmm(sentInfo(R.type).t)) + ', ответа ЕГАИС пока нет — возможно, лучше сначала нажать «Загрузить из УТМ».</div>' : '') +
-        '<p class="muted small">Это запрос сведений: остатки он не меняет. Ответ придёт в УТМ обычно за несколько минут. ЕГАИС ограничивает, как часто можно запрашивать остатки: если запросить слишком рано, придёт отказ — он ничего не ломает.</p>',
-        'Отправить запрос');
+        (warn ? '<div class="note wait">' + esc(warn) + ' Отказ ничего не ломает.</div>' : '') +
+        '<p class="muted small">Это запрос сведений: остатки он не меняет. Ответ придёт в УТМ обычно за несколько минут.' +
+        (R.daily ? ' Остатки склада можно запрашивать раз в сутки — это общий лимит для всех программ, которые работают с вашим УТМ.' : ' ЕГАИС ограничивает, как часто можно запрашивать остатки: если запросить слишком рано, придёт отказ — он ничего не ломает.') + '</p>',
+        warn ? 'Всё равно отправить' : 'Отправить запрос');
     }).then(function (ok) {
       st.asking = false;
       if (!ok) return;
@@ -781,6 +806,9 @@
       if (e && e.uncertain) {
         remember(R.type, { uncertain: true });
         rsStatus('wait', esc(e.message) + '. Запрос, скорее всего, ушёл — подождите несколько минут и нажмите «Загрузить из УТМ».');
+      } else if (/уже существует документ/i.test(e && e.message)) {
+        rsStatus('wait', '<b>Сегодня ' + R.what + ' уже запрашивали</b> — возможно, другая программа, подключённая к УТМ. Такой запрос можно отправлять раз в сутки, повторите завтра. Если ответ ЕГАИС уже пришёл в УТМ, нажмите «Загрузить из УТМ».' +
+          '<div class="muted small" style="margin-top:4px">Ответ УТМ: ' + esc(e.message) + '</div>');
       } else rsStatus('err', 'Не удалось отправить запрос: ' + esc(e && e.message || e));
     }).then(function () { busy(false); renderRests(); });
   }
