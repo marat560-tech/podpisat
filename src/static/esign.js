@@ -194,6 +194,49 @@
     });
   }
 
+  // Подпись второй стороной: к готовой отделённой подписи existingB64 добавляем свою.
+  // origB64 — base64 исходного документа, existingB64 — base64 существующего CMS. Возвращает новый CMS.
+  function rtCoSign(cert, origB64, existingB64, pin, opts) {
+    var p = state.rt;
+    if (typeof p.DATA_FORMAT_BASE64 === 'undefined') {
+      var err = new Error('Установленная версия Рутокен Плагина слишком старая — обновите её.');
+      err.friendly = true;
+      return Promise.reject(err);
+    }
+    var options = {
+      detached: true, addUserCertificate: true, addSignTime: opts.signTime !== false,
+      addEssCert: true, useHardwareHash: false, cmsToAdd: existingB64
+    };
+    return p.login(cert.device, pin).then(function () {
+      return p.sign(cert.device, cert.id, origB64, p.DATA_FORMAT_BASE64, options);
+    }).then(function (cms) {
+      return p.logout(cert.device).then(function () { return b64ToBytes(cms); }, function () { return b64ToBytes(cms); });
+    }, function (e) {
+      return p.logout(cert.device).then(function () { throw e; }, function () { throw e; });
+    });
+  }
+
+  // Подпись вторым участником: добавляем свою подпись к уже готовой (CMS от контрагента),
+  // обе — над одним и тем же документом. Возвращаем новый CMS (Uint8Array) с обеими подписями.
+  function rtCoSign(cert, dataB64, existingCmsB64, pin, opts) {
+    var p = state.rt;
+    if (typeof p.DATA_FORMAT_BASE64 === 'undefined') {
+      var err = new Error('Установленная версия Рутокен Плагина слишком старая — обновите её.'); err.friendly = true;
+      return Promise.reject(err);
+    }
+    var options = {
+      detached: true, addUserCertificate: true, addSignTime: opts.signTime !== false,
+      addEssCert: true, useHardwareHash: false, cmsToAdd: existingCmsB64
+    };
+    return p.login(cert.device, pin).then(function () {
+      return p.sign(cert.device, cert.id, dataB64, p.DATA_FORMAT_BASE64, options);
+    }).then(function (cms) {
+      return p.logout(cert.device).then(function () { return b64ToBytes(cms); }, function () { return b64ToBytes(cms); });
+    }, function (e) {
+      return p.logout(cert.device).then(function () { throw e; }, function () { throw e; });
+    });
+  }
+
   // ---------------------------------------------------------------- КриптоПро
   function initCryptoPro() {
     if (!window.cadesplugin) {
@@ -278,6 +321,54 @@
     }).then(b64ToBytes);
   }
 
+  // Подпись вторым участником: к готовой отделённой подписи existingB64 добавляем свою.
+  // Содержимое (original, base64) — исходный документ, подписанный первой стороной.
+  function cpCoSign(cert, originalB64, existingB64) {
+    var c = window.cadesplugin, signer, sd;
+    return c.CreateObjectAsync('CAdESCOM.CPSigner').then(function (s) {
+      signer = s;
+      return signer.propset_Certificate(cert.cert);
+    }).then(function () {
+      return signer.propset_Options(c.CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY);
+    }).then(function () {
+      return c.CreateObjectAsync('CADESCOM.CPAttribute');
+    }).then(function (attr) {
+      return attr.propset_Name(c.CAPICOM_AUTHENTICATED_ATTRIBUTE_SIGNING_TIME)
+        .then(function () { return attr.propset_Value(new Date()); })
+        .then(function () { return signer.AuthenticatedAttributes2; })
+        .then(function (attrs) { return attrs.Add(attr); })
+        .catch(function () { /* время подписи добавит сам КриптоПро */ });
+    }).then(function () {
+      return c.CreateObjectAsync('CAdESCOM.CadesSignedData');
+    }).then(function (o) {
+      sd = o;
+      return sd.propset_ContentEncoding(c.CADESCOM_BASE64_TO_BINARY);
+    }).then(function () {
+      return sd.propset_Content(originalB64);
+    }).then(function () {
+      // загружаем уже существующую отделённую подпись (detached = true)
+      return sd.VerifyCades(existingB64, c.CADESCOM_CADES_BES, true);
+    }).then(function () {
+      // добавляем свою подпись рядом с существующей
+      return sd.CoSignCades(signer, c.CADESCOM_CADES_BES, true);
+    }).then(b64ToBytes);
+  }
+
+  function rtCoSign(cert, originalB64, existingB64, pin) {
+    var p = state.rt;
+    var options = {
+      detached: true, addUserCertificate: true, addSignTime: true, addEssCert: true, useHardwareHash: false,
+      cmsToAdd: existingB64            // существующая подпись, к которой добавляем свою
+    };
+    return p.login(cert.device, pin).then(function () {
+      return p.sign(cert.device, cert.id, originalB64, p.DATA_FORMAT_BASE64, options);
+    }).then(function (cms) {
+      return p.logout(cert.device).then(function () { return b64ToBytes(cms); }, function () { return b64ToBytes(cms); });
+    }, function (e) {
+      return p.logout(cert.device).then(function () { throw e; }, function () { throw e; });
+    });
+  }
+
   function cpSignMany(cert, items, opts, onProgress) {
     var out = [];
     return items.reduce(function (chain, b64, i) {
@@ -286,6 +377,67 @@
         return cpSignOne(cert, b64, opts).then(function (cms) { out.push(cms); });
       });
     }, Promise.resolve()).then(function () { return out; });
+  }
+
+  function cpCoSign(cert, origB64, existingB64, opts) {
+    var c = window.cadesplugin, signer, sd;
+    return c.CreateObjectAsync('CAdESCOM.CPSigner').then(function (s) {
+      signer = s;
+      return signer.propset_Certificate(cert.cert);
+    }).then(function () {
+      return signer.propset_Options(c.CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY);
+    }).then(function () {
+      if (opts.signTime === false) return;
+      return c.CreateObjectAsync('CADESCOM.CPAttribute').then(function (attr) {
+        return attr.propset_Name(c.CAPICOM_AUTHENTICATED_ATTRIBUTE_SIGNING_TIME)
+          .then(function () { return attr.propset_Value(new Date()); })
+          .then(function () { return signer.AuthenticatedAttributes2; })
+          .then(function (attrs) { return attrs.Add(attr); });
+      }).catch(function () { /* время подписи добавит сам КриптоПро */ });
+    }).then(function () {
+      return c.CreateObjectAsync('CAdESCOM.CadesSignedData');
+    }).then(function (o) {
+      sd = o;
+      return sd.propset_ContentEncoding(c.CADESCOM_BASE64_TO_BINARY);
+    }).then(function () {
+      return sd.propset_Content(origB64);
+    }).then(function () {
+      // загружаем уже готовую отделённую подпись в объект (третий параметр — отделённая)
+      return sd.VerifyCades(existingB64, c.CADESCOM_CADES_BES, true);
+    }).then(function () {
+      // добавляем свою подпись рядом с существующей
+      return sd.CoSignCades(signer, c.CADESCOM_CADES_BES, true);
+    }).then(b64ToBytes);
+  }
+
+  function cpCoSign(cert, dataB64, existingCmsB64, opts) {
+    var c = window.cadesplugin, signer, sd;
+    return c.CreateObjectAsync('CAdESCOM.CPSigner').then(function (s) {
+      signer = s;
+      return signer.propset_Certificate(cert.cert);
+    }).then(function () {
+      return signer.propset_Options(c.CAPICOM_CERTIFICATE_INCLUDE_END_ENTITY_ONLY);
+    }).then(function () {
+      if (opts.signTime === false) return;
+      return c.CreateObjectAsync('CADESCOM.CPAttribute').then(function (attr) {
+        return attr.propset_Name(c.CAPICOM_AUTHENTICATED_ATTRIBUTE_SIGNING_TIME)
+          .then(function () { return attr.propset_Value(new Date()); })
+          .then(function () { return signer.AuthenticatedAttributes2; })
+          .then(function (attrs) { return attrs.Add(attr); });
+      }).catch(function () { /* время подписи добавит сам КриптоПро */ });
+    }).then(function () {
+      return c.CreateObjectAsync('CAdESCOM.CadesSignedData');
+    }).then(function (o) {
+      sd = o;
+      return sd.propset_ContentEncoding(c.CADESCOM_BASE64_TO_BINARY);
+    }).then(function () {
+      return sd.propset_Content(dataB64);
+    }).then(function () {
+      // загружаем готовую подпись контрагента (detached), затем добавляем свою
+      return sd.VerifyCades(existingCmsB64, c.CADESCOM_CADES_BES, true);
+    }).then(function () {
+      return sd.CoSignCades(signer, c.CADESCOM_CADES_BES, true);
+    }).then(b64ToBytes);
   }
 
   function cpErrorText(e) {
@@ -412,6 +564,26 @@
     signMany: function (cert, items, pin, opts, onProgress) {
       opts = opts || {};
       return (cert.src === 'rt' ? rtSignMany(cert, items, pin, opts, onProgress) : cpSignMany(cert, items, opts, onProgress))
+        .catch(function (e) {
+          var err = new Error(cert.src === 'rt' ? rtErrorText(e) : cpErrorText(e));
+          err.friendly = true;
+          throw err;
+        });
+    },
+    // Добавить свою подпись к подписи контрагента (dataB64 — документ, existingCmsB64 — готовый CMS)
+    coSign: function (cert, dataB64, existingCmsB64, pin, opts) {
+      opts = opts || {};
+      return (cert.src === 'rt' ? rtCoSign(cert, dataB64, existingCmsB64, pin, opts) : cpCoSign(cert, dataB64, existingCmsB64, opts))
+        .catch(function (e) {
+          var err = new Error(cert.src === 'rt' ? rtErrorText(e) : cpErrorText(e));
+          err.friendly = true;
+          throw err;
+        });
+    },
+    // Подпись второй стороной. origB64 — base64 документа, existingB64 — base64 готового CMS.
+    coSign: function (cert, origB64, existingB64, pin, opts) {
+      opts = opts || {};
+      return (cert.src === 'rt' ? rtCoSign(cert, origB64, existingB64, pin, opts) : cpCoSign(cert, origB64, existingB64, opts))
         .catch(function (e) {
           var err = new Error(cert.src === 'rt' ? rtErrorText(e) : cpErrorText(e));
           err.friendly = true;

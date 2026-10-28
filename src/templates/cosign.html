@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_esign.html" as e %}
+{% block content %}
+<div class="page-head">
+  <h1>Подписать вторым участником</h1>
+  <p class="lead">Контрагент прислал подписанный файл, и нужно добавить свою подпись рядом с его — не затирая первую. На выходе один файл подписи с двумя подписями. Всё в браузере, файл никуда не отправляется.</p>
+</div>
+
+<div class="ws ws-files">
+  <div class="ws-main">
+    <label class="drop hero-drop" id="drop">
+      <input type="file" id="file" multiple>
+      <div class="hero-drop-in">
+        <svg class="drop-ico" viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="8" width="30" height="40" rx="4" fill="var(--ok-bg)" stroke="var(--accent)" stroke-width="2.5"/><path d="M17 20h16M17 27h16M17 34h9" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><circle cx="46" cy="44" r="13" fill="var(--accent)"/><path d="M40 44l4 4 8-8" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        <div>
+          <b class="big-label">Файлы от контрагента</b>
+          <span class="muted">документ и его подпись .sig — или архив .zip, где они вместе</span>
+        </div>
+      </div>
+    </label>
+    <div id="loaded"></div>
+  </div>
+
+  <aside class="ws-side">
+    <section class="panel">
+      <h3><span class="n">1</span> Ваша подпись</h3>
+      {{ e.plugins() }}
+      {{ e.certs() }}
+    </section>
+    <section class="panel">
+      <h3><span class="n">2</span> Подписать</h3>
+      {{ e.pin() }}
+      <button class="btn primary big wide" id="sign" type="button" disabled>Добавить мою подпись</button>
+      <div id="status"></div>
+      <div id="result" hidden>
+        <div class="note ok" id="result-title"><b>Готово!</b></div>
+        <div class="stack" id="result-main"></div>
+        <div id="result-signers"></div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<div class="card">
+  <h3>Как это работает</h3>
+  <ul class="plain-list">
+    <li>Загрузите то, что прислал контрагент: сам документ и файл его подписи <code>.sig</code> (или архив <code>.zip</code>, где лежат оба).</li>
+    <li>Сайт покажет, кто уже подписал, и проверит его подпись.</li>
+    <li>Выберите свою подпись, нажмите «Добавить мою подпись».</li>
+    <li>Сразу после этого сайт сам проверит результат и покажет обе подписи. Вы получите архив с документом и одним файлом подписи, в котором теперь две подписи.</li>
+  </ul>
+  <p class="small muted" style="margin-bottom:0">Обе подписи относятся к одному и тому же документу (параллельные подписи, как в договоре с двух сторон). Это для отделённой подписи <code>.sig</code>. Для подписи внутри PDF со штампом — <a href="/pdf">страница PDF</a>.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/jszip.min.js"></script>
+<script src="/static/vendor/gost/gostDigest.min.js"></script>
+<script src="/static/cmsverify.js?v={{ version }}"></script>
+{{ e.scripts(version) }}
+<script src="/static/cosign.js?v={{ version }}"></script>
+{% endblock %}

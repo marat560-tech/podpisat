@@ -57,7 +57,7 @@ const ALG = {
   512: { hash: '1.2.643.7.1.1.2.3', key: '1.2.643.7.1.1.1.2', sig: '1.2.643.7.1.1.3.3' }
 };
 
-function makeKey(bits, curve, curveOid, cn) {
+function makeKey(bits, curve, curveOid, cn, serial = [0x01, 0x23, 0x45]) {
   // Тестовая библиотека держит общее состояние между объектами: после создания второго ключа
   // первый объект начинает подписывать неверно. Поэтому каждая подпись — свежим объектом.
   const signer = () => new libCtx.GostSign({ name: 'GOST R 34.10', version: 2012, length: bits, namedCurve: curve, procreator: 'CP', hash: 'GOST R 34.11' });
@@ -73,12 +73,12 @@ function makeKey(bits, curve, curveOid, cn) {
   const a = ALG[bits];
   const name = seq(set(seq(oid('2.5.4.3'), utf8(cn))), set(seq(oid('2.5.4.4'), utf8('Иванов'))), set(seq(oid('2.5.4.42'), utf8('Иван Иванович'))));
   const now = Date.now();
-  const tbs = seq(tlv(0xa0, int([2])), int([0x01, 0x23, 0x45]), seq(oid(a.sig)), name,
+  const tbs = seq(tlv(0xa0, int([2])), int(serial), seq(oid(a.sig)), name,
     seq(utc(new Date(now - 864e5)), utc(new Date(now + 365 * 864e5))), name,
     seq(seq(oid(a.key), seq(oid(curveOid), oid(a.hash))), tlv(3, Buffer.concat([Buffer.from([0]), oct(Buffer.from(k.publicKey))]))));
   const sign = d => Buffer.from(s.sign(k.privateKey, new Uint8Array(d)));
   const cert = seq(tbs, seq(oid(a.sig)), tlv(3, Buffer.concat([Buffer.from([0]), sign(tbs)])));
-  return { bits, name, cert, sign, a };
+  return { bits, name, cert, sign, a, serial };
 }
 
 function digest(bits, data) {
@@ -94,12 +94,30 @@ function makeCms(key, data, opt = {}) {
     seq(oid('1.2.840.113549.1.9.4'), set(oct(md)))
   ]);
   const sv = (opt.signer || key).sign(set(sa));
-  const si = seq(int([1]), seq(key.name, int([0x01, 0x23, 0x45])), seq(oid(a.hash)), tlv(0xa0, sa), seq(oid(a.key)), oct(sv));
+  const si = seq(int([1]), seq(key.name, int(key.serial)), seq(oid(a.hash)), tlv(0xa0, sa), seq(oid(a.key)), oct(sv));
   if (opt.ber) {
     const encap = ind(0x30, oid('1.2.840.113549.1.7.1'), ...(opt.attached ? [ind(0xa0, ind(0x24, oct(data.subarray(0, 3)), oct(data.subarray(3))))] : []));
     return ind(0x30, oid('1.2.840.113549.1.7.2'), ind(0xa0, ind(0x30, int([1]), set(seq(oid(a.hash))), encap, ind(0xa0, key.cert), set(si))));
   }
   const sd = seq(int([1]), set(seq(oid(a.hash))), seq(oid('1.2.840.113549.1.7.1'), ...(opt.attached ? [ctx0(oct(data))] : [])), tlv(0xa0, key.cert), set(si));
+  return seq(oid('1.2.840.113549.1.7.2'), ctx0(sd));
+}
+
+// Отделённая подпись двумя участниками: две SignerInfo над одним документом (подпись второй стороной)
+function signerInfo(key, data) {
+  const a = key.a, md = digest(key.bits, data);
+  const sa = Buffer.concat([
+    seq(oid('1.2.840.113549.1.9.3'), set(oid('1.2.840.113549.1.7.1'))),
+    seq(oid('1.2.840.113549.1.9.5'), set(utc(new Date()))),
+    seq(oid('1.2.840.113549.1.9.4'), set(oct(md)))
+  ]);
+  const sv = key.sign(set(sa));
+  return seq(int([1]), seq(key.name, int(key.serial)), seq(oid(a.hash)), tlv(0xa0, sa), seq(oid(a.key)), oct(sv));
+}
+function makeCms2(key1, key2, data) {
+  const digAlgs = key1.a.hash === key2.a.hash ? set(seq(oid(key1.a.hash))) : set(seq(oid(key1.a.hash)), seq(oid(key2.a.hash)));
+  const sd = seq(int([1]), digAlgs, seq(oid('1.2.840.113549.1.7.1')),
+    tlv(0xa0, key1.cert, key2.cert), set(signerInfo(key1, data), signerInfo(key2, data)));
   return seq(oid('1.2.840.113549.1.7.2'), ctx0(sd));
 }
 
@@ -143,6 +161,19 @@ async function main() {
   try { await CmsVerify.verify(makeCms(keys[0], doc), null); } catch (e) { threw = /отделённая/.test(e.message); }
   check('отделённая подпись без документа — понятная ошибка', threw);
 
+  // Подпись второй стороной: две подписи над одним документом
+  {
+    const k2 = makeKey(256, 'S-256-A', '1.2.643.2.2.35.1', 'Второй участник');
+    let r = await CmsVerify.verify(makeCms2(keys[0], k2, doc), doc);
+    check('две стороны: обе подписи верны', r.signers.length === 2 && r.signers[0].ok && r.signers[1].ok, JSON.stringify(r.signers.map(s => s.problems)));
+    check('две стороны: у каждой свой подписант', !!(r.signers[0].cert && r.signers[1].cert) && r.signers[0].cert.subject.CN !== r.signers[1].cert.subject.CN);
+    r = await CmsVerify.verify(makeCms2(keys[0], keys[1], doc), doc);
+    check('две стороны: 256 и 512 вместе — обе верны', r.signers.length === 2 && r.signers.every(s => s.ok), JSON.stringify(r.signers.map(s => s.problems)));
+    const ch = Buffer.from(doc); ch[0] ^= 1;
+    r = await CmsVerify.verify(makeCms2(keys[0], k2, doc), ch);
+    check('две стороны: изменённый документ ломает обе подписи', r.signers.length === 2 && !r.signers[0].ok && !r.signers[1].ok);
+  }
+
   console.log('Подпись PDF');
   const key = keys[0];
   const img = { w: 4, h: 2, rgb: new Uint8Array(24).fill(90), alpha: new Uint8Array(8).fill(200), key: 's' };
@@ -185,6 +216,21 @@ async function main() {
   let notPdf = '';
   try { await PdfInc.open(new Uint8Array(Buffer.from('просто текст'))); } catch (e) { notPdf = e.message; }
   check('не PDF: понятный отказ', /не PDF/.test(notPdf));
+
+  // Фикстуры для теста страницы «подпись второй стороной»: документ, подпись контрагента, готовая co-подпись.
+  // Стороны с разными серийными номерами сертификатов, как в реальности.
+  if (process.env.WRITE_COSIGN_FIXTURES) {
+    const dir = path.join(__dirname, 'cosign', 'fixtures');
+    fs.mkdirSync(dir, { recursive: true });
+    const cdoc = Buffer.from('Договор № 7 от 28.10.2026. Текст для проверки двух подписей.');
+    const k1 = makeKey(256, 'S-256-A', '1.2.643.2.2.35.1', 'Петров Пётр (контрагент)', [0x01, 0x23, 0x45]);
+    const k2 = makeKey(256, 'S-256-A', '1.2.643.2.2.35.1', 'Иванов Иван (вы)', [0x02, 0x46, 0x8a]);
+    fs.writeFileSync(path.join(dir, 'doc.txt'), cdoc);
+    fs.writeFileSync(path.join(dir, 'doc.txtSGN1.sig'), makeCms(k1, cdoc));
+    fs.writeFileSync(path.join(dir, 'cosigned.sig'), makeCms2(k1, k2, cdoc));
+    const chk = await CmsVerify.verify(new Uint8Array(makeCms2(k1, k2, cdoc)), new Uint8Array(cdoc));
+    console.log('cosign-фикстуры записаны; co-подпись верна:', chk.signers.length === 2 && chk.signers.every(s => s.ok));
+  }
 
   console.log('\nПройдено: ' + passed + ', не пройдено: ' + failed);
   process.exit(failed ? 1 : 0);
