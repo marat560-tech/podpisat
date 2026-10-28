@@ -94,7 +94,7 @@
   function initRutoken() {
     if (!window.rutoken) { setPlug('plug-rt', false, 'Не удалось загрузить модуль.'); return Promise.resolve(); }
     return withTimeout(rutoken.ready, 8000).then(function () {
-      var isChromium = !!window.chrome || /Firefox|YaBrowser|Edg\//.test(navigator.userAgent);
+      var isChromium = !!window.chrome || /Chrome\/|Chromium|Firefox|YaBrowser|Edg\//.test(navigator.userAgent);
       return isChromium ? rutoken.isExtensionInstalled() : true;
     }).then(function (ext) {
       if (!ext) throw new Error('noext');
@@ -410,6 +410,8 @@
           throw err;
         });
     },
-    esc: esc, fmtDate: fmtDate, b64ToBytes: b64ToBytes, bytesToB64: bytesToB64
+    esc: esc, fmtDate: fmtDate, b64ToBytes: b64ToBytes, bytesToB64: bytesToB64,
+    // для страницы диагностики
+    util: { promisifyPlugin: promisifyPlugin, parseDn: parseDn, personName: personName, cleanSerial: cleanSerial, withTimeout: withTimeout }
   };
 })();

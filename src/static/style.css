@@ -382,3 +382,16 @@ dialog.confirm h3 { margin: 0 0 10px; font-size: 19px; }
 .rs-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
 .rs .sub-note { margin: 6px 0; }
 .rs details.more-opts { margin-top: 6px; }
+ul.diag { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 2px; }
+ul.diag li.dg { display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+ul.diag li.dg:last-child { border-bottom: 0; }
+.dg-ico { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; background: var(--soon-bg); color: var(--soon); }
+.dg.ok .dg-ico { background: var(--ok-bg); color: var(--ok); }
+.dg.warn .dg-ico { background: var(--wait-bg); color: var(--wait); }
+.dg.err .dg-ico { background: var(--err-bg); color: var(--err); }
+.dg-text { font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; }
+.dg-fix { font-size: 14px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--soon-bg); }
+.dg.err .dg-fix { background: var(--err-bg); color: var(--err); }
+.dg.warn .dg-fix { background: var(--wait-bg); color: var(--wait); }
+.dg-fix a, .offer a:not(.btn) { color: inherit; font-weight: 600; }
+.offer { margin-top: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--ok-bg); font-size: 15px; }

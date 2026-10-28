@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "_esign.html" as es %}
+{% block content %}
+<div class="page-head">
+  <h1>Проверка компьютера для подписи</h1>
+  <p class="lead">Не получается подписать? Проверим по шагам: браузер, плагины, Рутокен, сроки подписи — и скажем, что именно сломано и как починить. Всё проверяется на вашем компьютере, ничего никуда не отправляется.</p>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <h3 style="margin:0">Результат</h3>
+    <button class="btn sm" id="diag-go" type="button">Проверить ещё раз</button>
+  </div>
+  <div id="diag-verdict"></div>
+  <ul class="diag" id="diag-list"></ul>
+  <div id="diag-offer" data-phone="{{ phone }}" data-tel="{{ phone_tel }}"></div>
+  <details class="more-opts" id="diag-report" hidden style="margin-top:12px">
+    <summary>Отчёт для поддержки</summary>
+    <p class="small muted" style="margin:6px 0">Если звоните нам или в поддержку — скопируйте и пришлите этот текст. В нём нет PIN-кодов и ключей.</p>
+    <pre class="diag" id="diag-report-text"></pre>
+    <button class="btn sm" type="button" id="diag-copy">Скопировать</button>
+  </details>
+</div>
+
+<div class="card">
+  <h3>Что нужно для подписи</h3>
+  {{ es.keys(on_diag=True) }}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/rutoken.min.js"></script>
+<script src="/static/vendor/cadesplugin_api.js"></script>
+<script src="/static/esign.js?v={{ version }}"></script>
+<script src="/static/diag.js?v={{ version }}"></script>
+{% endblock %}

@@ -53,17 +53,19 @@ jobs:
           zip -qr podpisat-site.zip site deploy
           ls -la podpisat-site.zip
 
-      # Раздел ЕГАИС в настоящем браузере с тестовым УТМ (Chrome уже есть на сервере сборки).
-      # Не прошли — релиз не публикуется, сайт на сервере остаётся прежним.
-      - name: Tests ЕГАИС
+      # ЕГАИС (с тестовым УТМ) и диагностика подписи (с заглушками плагинов) в настоящем браузере —
+      # Chrome уже есть на сервере сборки. Не прошли — релиз не публикуется, сайт на сервере остаётся прежним.
+      - name: Tests в браузере
         env:
           EGAIS_CHROME_CHANNEL: chrome
         run: |
           # Причина падения попадает в аннотацию сборки — её видно и без полного журнала
           oneline() { tail -c 3000 "$1" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'; }
           npm install --no-save --no-package-lock playwright-core@1.63.0 > npm.log 2>&1 || { cat npm.log; echo "::error title=npm install::$(oneline npm.log)"; exit 1; }
-          node tests/egais/run.js > egais.log 2>&1 || { cat egais.log; grep -E '✗|упал|Error|пройдено' -A4 egais.log > fail.log || true; echo "::error title=Тесты ЕГАИС::$(oneline fail.log)"; exit 1; }
-          cat egais.log
+          for t in egais diag; do
+            node tests/$t/run.js > $t.log 2>&1 || { cat $t.log; grep -E '✗|упал|Error|пройдено' -A4 $t.log > fail.log || true; echo "::error title=Тесты $t::$(oneline fail.log)"; exit 1; }
+            cat $t.log
+          done
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

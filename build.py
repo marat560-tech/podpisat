@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 OUT = os.path.join(ROOT, "site")
 FILES = os.path.join(ROOT, "files")  # большие файлы: Help4x и исходники
-VERSION = "25"
+VERSION = "26"
 PHONE = "+7 (843) 208-53-54"
 PHONE_TEL = "+78432085354"
 SITE = "https://xn--80ahmweccok4b0dm.xn--p1ai"  # подписатьэцп.рф
@@ -162,6 +162,8 @@ def main():
         "help4x": dict(tpl="help4x.html", page_title="Удалённая помощь Help4x", active="help4x",
                        description="Программа удалённой помощи Help4x: поможем настроить подпись, УТМ и плагины.",
                        h4x=help4x_info()),
+        "diagnostics": dict(tpl="diagnostics.html", page_title="Не работает электронная подпись — проверить компьютер", active="help4x",
+                            description="Не получается подписать? Бесплатная проверка компьютера: браузер, Рутокен Плагин, КриптоПро, Рутокен, срок действия подписи — и что делать."),
         "about": dict(tpl="about.html", page_title="О проекте", active="",
                       description="О проекте подписатьэцп.рф"),
         "privacy": dict(tpl="privacy.html", page_title="Политика конфиденциальности", active="",
