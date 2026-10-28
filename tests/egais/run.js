@@ -89,7 +89,7 @@ function startSite() {
     if (p === '/') p = '/index';
     let f = path.join(SITE, path.normalize(p));
     if (!f.startsWith(SITE)) { res.writeHead(403); return res.end(); }
-    if (!fs.existsSync(f) && fs.existsSync(f + '.html')) f += '.html';
+    if ((!fs.existsSync(f) || fs.statSync(f).isDirectory()) && fs.existsSync(f + '.html')) f += '.html';
     if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' });
     fs.createReadStream(f).pipe(res);

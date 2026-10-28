@@ -32,7 +32,7 @@
       <a href="/pdf" class="{{ 'on' if active == 'pdf' }}">PDF со штампом</a>
       <a href="/verify" class="{{ 'on' if active == 'verify' }}">Проверить</a>
       <a href="/egais" class="{{ 'on' if active in ('egais', 'mercury', 'reports') }}">ЕГАИС</a>
-      <a href="/help4x" class="{{ 'on' if active == 'help4x' }} help">Помощь</a>
+      <a href="/help" class="{{ 'on' if active in ('help', 'help4x') }} help">Помощь</a>
     </nav>
   </div>
 </header>

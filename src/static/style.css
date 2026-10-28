@@ -395,3 +395,27 @@ ul.diag li.dg:last-child { border-bottom: 0; }
 .dg.warn .dg-fix { background: var(--wait-bg); color: var(--wait); }
 .dg-fix a, .offer a:not(.btn) { color: inherit; font-weight: 600; }
 .offer { margin-top: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--ok-bg); font-size: 15px; }
+/* Помощь и инструкции */
+.g-ico { width: 44px; height: 44px; flex: none; }
+.g-steps { display: grid; gap: 0; padding-top: 6px; padding-bottom: 6px; }
+.g-step { display: grid; grid-template-columns: 36px 1fr 64px; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.g-step:last-child { border-bottom: 0; }
+.g-num { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.g-body h3 { margin: 4px 0 6px; font-size: 17px; }
+.g-body p { margin: 0 0 8px; } .g-body p:last-child { margin-bottom: 0; }
+.g-art .g-ico { width: 56px; height: 56px; }
+.g-case { display: grid; grid-template-columns: 64px 1fr; gap: 16px; }
+.g-case h3 { margin-top: 2px; }
+.offer-case { border-color: var(--accent); }
+.g-price { background: var(--ok-bg); color: var(--ok); padding: 10px 12px; border-radius: 8px; }
+.g-next { margin-top: 18px; }
+.help-hero { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; align-items: center; text-decoration: none; color: inherit; border-color: var(--accent); }
+.help-hero .g-ico { width: 52px; height: 52px; }
+.tile .g-ico { width: 40px; height: 40px; margin-bottom: 6px; }
+.prices td { padding: 10px 8px; } .prices td.r { font-weight: 600; }
+@media (max-width: 640px) {
+  .g-step { grid-template-columns: 30px 1fr; }
+  .g-step .g-art { display: none; }
+  .g-case { grid-template-columns: 1fr; } .g-case .g-art { display: none; }
+  .help-hero { grid-template-columns: 44px 1fr; } .help-hero .btn { grid-column: 1 / -1; justify-self: start; }
+}

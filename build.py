@@ -162,7 +162,17 @@ def main():
         "help4x": dict(tpl="help4x.html", page_title="Удалённая помощь Help4x", active="help4x",
                        description="Программа удалённой помощи Help4x: поможем настроить подпись, УТМ и плагины.",
                        h4x=help4x_info()),
-        "diagnostics": dict(tpl="diagnostics.html", page_title="Не работает электронная подпись — проверить компьютер", active="help4x",
+        "help": dict(tpl="help.html", page_title="Помощь с электронной подписью", active="help",
+                     description="Проверка компьютера, инструкции по электронной подписи и Рутокену, удалённая помощь и цены."),
+        "help/fns": dict(tpl="help_fns.html", page_title="Как получить электронную подпись в налоговой бесплатно", active="help",
+                         description="Руководителю и ИП: где получить КЭП в налоговой, что взять с собой, какой нужен токен и что делать после получения."),
+        "help/rutoken-plugin": dict(tpl="help_rutoken.html", page_title="Как установить Рутокен Плагин", active="help",
+                                    description="Пошагово: скачать и установить Рутокен Плагин, добавить расширение «Адаптер Рутокен Плагин», проверить подпись из налоговой."),
+        "help/not-visible": dict(tpl="help_not_visible.html", page_title="Электронная подпись не видна — что делать", active="help",
+                                 description="Ключ вставлен, а подписи нет: Рутокен, КриптоПро, выключенное расширение, спрятанное окно, истёкший срок — по шагам."),
+        "help/copy": dict(tpl="help_copy.html", page_title="Как перенести электронную подпись на другой компьютер", active="help",
+                          description="Можно ли скопировать подпись: Рутокен ЭЦП 3.0 из налоговой — нет, ключ с Рутокен Lite — да. Скопируем удалённо за 1 500 ₽."),
+        "diagnostics": dict(tpl="diagnostics.html", page_title="Не работает электронная подпись — проверить компьютер", active="help",
                             description="Не получается подписать? Бесплатная проверка компьютера: браузер, Рутокен Плагин, КриптоПро, Рутокен, срок действия подписи — и что делать."),
         "about": dict(tpl="about.html", page_title="О проекте", active="",
                       description="О проекте подписатьэцп.рф"),
@@ -175,7 +185,9 @@ def main():
     for name, ctx in pages.items():
         ctx["path"] = "/" if name == "index" else "/" + name
         html = env.get_template(ctx.pop("tpl")).render(**common, **ctx)
-        with open(os.path.join(OUT, name + ".html"), "w", encoding="utf-8") as f:
+        out = os.path.join(OUT, name + ".html")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
             f.write(html)
     write_seo(pages)
     print("Собрано в", OUT, "страниц:", len(pages))

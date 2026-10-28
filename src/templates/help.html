@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_guide.html" as g %}
+{% block content %}
+<div class="page-head">
+  <h1>Помощь</h1>
+  <p class="lead">Не получается подписать, не видна подпись, нужно перенести ключ? Начните с проверки компьютера — она покажет, что не так. Не справитесь сами — поможем удалённо.</p>
+</div>
+
+<a class="card help-hero" href="/diagnostics">
+  {{ g.icon('check') }}
+  <div><h3 style="margin:0 0 4px">Проверить компьютер</h3><p class="muted" style="margin:0">Браузер, плагины, Рутокен, срок подписи — за минуту. Скажем, что сломано и как починить.</p></div>
+  <span class="btn primary">Проверить</span>
+</a>
+
+<h2>Инструкции</h2>
+<div class="grid">
+  <a class="tile" href="/help/fns">{{ g.icon('office') }}<h3>Как получить подпись в налоговой</h3><p>Руководителю и ИП — бесплатно. Что взять с собой и какой нужен токен.</p></a>
+  <a class="tile" href="/help/rutoken-plugin">{{ g.icon('puzzle') }}<h3>Как установить Рутокен Плагин</h3><p>Для подписи из налоговой на Рутокен ЭЦП 3.0. Пять шагов, бесплатно.</p></a>
+  <a class="tile" href="/help/not-visible">{{ g.icon('window') }}<h3>Подпись не видна — что делать</h3><p>Ключ вставлен, а сайт пишет «подписей не найдено». По порядку, от простого.</p></a>
+  <a class="tile" href="/help/copy">{{ g.icon('copy') }}<h3>Перенести подпись на другой компьютер</h3><p>Что можно скопировать, а что нет — зависит от того, где лежит ключ.</p></a>
+</div>
+
+<h2>Услуги</h2>
+<div class="card">
+  <p class="muted" style="margin-top:0">Подключаемся удалённо через <a href="/help4x">Help4x</a> — к любому региону.</p>
+  <table class="tbl prices">
+    <tbody>
+      <tr><td>Настроить подпись, плагины, УТМ на вашем компьютере</td><td class="r">от 1&nbsp;000&nbsp;₽</td></tr>
+      <tr><td>Продлить подпись из налоговой, пока она ещё действует</td><td class="r">от 1&nbsp;000&nbsp;₽</td></tr>
+      <tr><td>Скопировать ключ с <b>Рутокен Lite</b> на другой носитель или компьютер</td><td class="r">1&nbsp;500&nbsp;₽</td></tr>
+      <tr><td>Самая сложная настройка</td><td class="r">не дороже 5&nbsp;000&nbsp;₽</td></tr>
+    </tbody>
+  </table>
+  <p class="small muted">Подпись из налоговой на Рутокен ЭЦП 3.0 скопировать нельзя — ключ на нём неизвлекаемый. <a href="/help/copy">Почему и что делать</a>.</p>
+  <div class="row tight"><a class="btn primary" href="tel:{{ phone_tel }}">{{ phone }}</a> <a class="btn" href="/help4x">Скачать Help4x</a></div>
+</div>
+{% endblock %}
