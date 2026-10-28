@@ -564,14 +564,14 @@
     st.pendingNote = '';
     var dlg = confirmSend(accept ? 'Принять накладную?' : 'Отказаться от накладной?', body, accept ? 'Принять' : 'Отказать');
     if (!accept) {
-      // кнопка «Отказать» активна только с причиной
-      setTimeout(function () {
-        var inp = document.getElementById('act-note'), ok = document.querySelector('dialog.confirm [data-a="1"]');
-        if (!inp || !ok) return;
+      // кнопка «Отказать» активна только с причиной; окно уже на странице (confirmSend создаёт его сразу),
+      // поэтому выключаем кнопку тут же — без промежутка, в который можно успеть нажать
+      var inp = document.getElementById('act-note'), ok = document.querySelector('dialog.confirm [data-a="1"]');
+      if (inp && ok) {
         ok.disabled = true;
         inp.addEventListener('input', function () { st.pendingNote = inp.value.trim(); ok.disabled = !st.pendingNote; });
         inp.focus();
-      }, 0);
+      }
     }
     dlg.then(function (yes) {
       if (!yes) return;

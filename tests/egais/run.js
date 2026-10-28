@@ -288,7 +288,7 @@ async function scenarioRests(browser, site, utm) {
   await page.click('[data-rests="stock"]');
   const d = await confirmDialog(page, true);
   check('в подтверждении: сегодня уже запрашивали', /Сегодня остатки склада уже запрашивали/.test(d.text) && d.okText === 'Всё равно отправить', d.text);
-  await page.waitForSelector('#rs-status .note');
+  await page.waitForFunction(() => { const n = document.querySelector('#rs-status .note'); return n && !/Отправляем/.test(n.innerText); });
   const s = await page.innerText('#rs-status');
   check('ошибка УТМ «уже существует документ» — понятными словами', /уже запрашивали/.test(s) && /повторите завтра/.test(s), s);
   check('без ошибок на странице', !page.errors.length, page.errors.join('\n'));
