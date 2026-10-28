@@ -53,6 +53,15 @@ jobs:
           zip -qr podpisat-site.zip site deploy
           ls -la podpisat-site.zip
 
+      # Раздел ЕГАИС в настоящем браузере с тестовым УТМ (Chrome уже есть на сервере сборки).
+      # Не прошли — релиз не публикуется, сайт на сервере остаётся прежним.
+      - name: Tests ЕГАИС
+        env:
+          EGAIS_CHROME_CHANNEL: chrome
+        run: |
+          npm install --no-save --no-package-lock --silent playwright-core@1.63.0
+          node tests/egais/run.js
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:

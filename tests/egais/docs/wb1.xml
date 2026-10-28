@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:wb="http://fsrar.ru/WEGAIS/TTNSingle_v4" xmlns:oref="http://fsrar.ru/WEGAIS/ClientRef_v2" xmlns:pref="http://fsrar.ru/WEGAIS/ProductRef_v2" xmlns:ce="http://fsrar.ru/WEGAIS/CommonV3">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:WayBill_v4>
+<wb:Identity>a1b2c3</wb:Identity>
+<wb:Header>
+ <wb:NUMBER>ТН-1045</wb:NUMBER><wb:Date>2026-10-20</wb:Date><wb:ShippingDate>2026-10-20</wb:ShippingDate><wb:Type>WBInvoiceFromMe</wb:Type>
+ <wb:Shipper><oref:UL><oref:INN>1655000001</oref:INN><oref:KPP>165501001</oref:KPP><oref:ClientRegId>010000000001</oref:ClientRegId><oref:FullName>Общество с ограниченной ответственностью "Винный дом"</oref:FullName><oref:ShortName>ООО "Винный дом"</oref:ShortName><oref:address><oref:Country>643</oref:Country><oref:RegionCode>16</oref:RegionCode><oref:description>Казань</oref:description></oref:address></oref:UL></wb:Shipper>
+ <wb:Consignee><oref:UL><oref:INN>1660000002</oref:INN><oref:ClientRegId>030000123456</oref:ClientRegId><oref:FullName>ООО "Магазин"</oref:FullName><oref:ShortName>ООО "Магазин"</oref:ShortName></oref:UL></wb:Consignee>
+ <wb:Note>Тест</wb:Note>
+</wb:Header>
+<wb:Content>
+ <wb:Position><wb:Identity>1</wb:Identity>
+  <wb:Product><pref:FullName>Вино столовое красное сухое "Тестовое"</pref:FullName><pref:AlcCode>0300000000000000001</pref:AlcCode><pref:Capacity>0.7500</pref:Capacity><pref:UnitType>Packed</pref:UnitType>
+   <pref:Producer><oref:UL><oref:ClientRegId>010000000099</oref:ClientRegId><oref:FullName>АО "Производитель"</oref:FullName><oref:INN>7700000000</oref:INN></oref:UL></pref:Producer></wb:Product>
+  <wb:Quantity>3</wb:Quantity><wb:Price>450.50</wb:Price><wb:FARegId>FA-001</wb:FARegId>
+  <wb:InformF2><ce:MarkInfo><ce:boxpos><ce:boxnumber>1</ce:boxnumber><ce:amclist><ce:amc>22N0000000001</ce:amc><ce:amc>22N0000000002</ce:amc><ce:amc>22N0000000003</ce:amc></ce:amclist></ce:boxpos></ce:MarkInfo></wb:InformF2>
+ </wb:Position>
+ <wb:Position><wb:Identity>2</wb:Identity>
+  <wb:Product><pref:FullName>Пиво светлое "Тест"</pref:FullName><pref:AlcCode>0300000000000000002</pref:AlcCode><pref:UnitType>Unpacked</pref:UnitType></wb:Product>
+  <wb:Quantity>12.5</wb:Quantity><wb:Price>100</wb:Price>
+ </wb:Position>
+</wb:Content>
+</ns:WayBill_v4></ns:Document></ns:Documents>

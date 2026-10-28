@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:ttn="http://fsrar.ru/WEGAIS/ReplyNoAnswerTTN">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:ReplyNATTN><ttn:Consignee>030000123456</ttn:Consignee><ttn:ReplyDate>@@DATE@@</ttn:ReplyDate>
+<ttn:ttnlist>
+<ttn:NoAnswer><ttn:WbRegID>TTN-0011223344</ttn:WbRegID><ttn:ttnNumber>ТН-1045</ttn:ttnNumber><ttn:ttnDate>2026-10-20</ttn:ttnDate><ttn:Shipper>010000000001</ttn:Shipper></ttn:NoAnswer>
+<ttn:NoAnswer><ttn:WbRegID>TTN-0055667788</ttn:WbRegID><ttn:ttnNumber>А-77</ttn:ttnNumber><ttn:ttnDate>2026-10-22</ttn:ttnDate><ttn:Shipper>010000000002</ttn:Shipper></ttn:NoAnswer>
+</ttn:ttnlist></ns:ReplyNATTN></ns:Document></ns:Documents>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:rst="http://fsrar.ru/WEGAIS/ReplyRestsShop_v2" xmlns:pref="http://fsrar.ru/WEGAIS/ProductRef_v2">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:ReplyRestsShop_v2><rst:RestsDate>@@DATE@@</rst:RestsDate><rst:Products>
+<rst:ShopPosition><rst:Quantity>12</rst:Quantity><rst:Product><pref:FullName>Коньяк "Тест" 5 лет</pref:FullName><pref:AlcCode>0100000000000000003</pref:AlcCode><pref:Capacity>0.5000</pref:Capacity></rst:Product></rst:ShopPosition>
+<rst:ShopPosition><rst:Quantity>3</rst:Quantity><rst:Product><pref:FullName>Вино красное сухое</pref:FullName><pref:AlcCode>0300000000007654321</pref:AlcCode><pref:Capacity>0.7500</pref:Capacity></rst:Product></rst:ShopPosition>
+</rst:Products></ns:ReplyRestsShop_v2></ns:Document></ns:Documents>

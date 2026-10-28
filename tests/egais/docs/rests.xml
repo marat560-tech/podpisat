@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:rst="http://fsrar.ru/WEGAIS/ReplyRests_v2" xmlns:pref="http://fsrar.ru/WEGAIS/ProductRef_v2" xmlns:oref="http://fsrar.ru/WEGAIS/ClientRef_v2">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:ReplyRests_v2><rst:RestsDate>@@DATE@@</rst:RestsDate><rst:Products>
+<rst:StockPosition><rst:Quantity>4</rst:Quantity><rst:InformF1RegId>FA-1</rst:InformF1RegId><rst:InformF2RegId>FB-1</rst:InformF2RegId><rst:Product><pref:FullName>Водка "Тест"</pref:FullName><pref:AlcCode>0100000000000000001</pref:AlcCode><pref:Capacity>0.5000</pref:Capacity><pref:Producer><oref:UL><oref:FullName>АО "Завод"</oref:FullName></oref:UL></pref:Producer></rst:Product></rst:StockPosition>
+<rst:StockPosition><rst:Quantity>2</rst:Quantity><rst:InformF1RegId>FA-2</rst:InformF1RegId><rst:InformF2RegId>FB-2</rst:InformF2RegId><rst:Product><pref:FullName>Водка "Тест"</pref:FullName><pref:AlcCode>0100000000000000001</pref:AlcCode><pref:Capacity>0.5000</pref:Capacity></rst:Product></rst:StockPosition>
+<rst:StockPosition><rst:Quantity>30.5</rst:Quantity><rst:Product><pref:FullName>Пиво разливное</pref:FullName><pref:AlcCode>0300000000000000002</pref:AlcCode></rst:Product></rst:StockPosition>
+</rst:Products></ns:ReplyRests_v2></ns:Document></ns:Documents>

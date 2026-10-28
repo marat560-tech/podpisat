@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:wbr="http://fsrar.ru/WEGAIS/TTNInformF2Reg" xmlns:oref="http://fsrar.ru/WEGAIS/ClientRef_v2">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:TTNInformF2Reg>
+<wbr:Header><wbr:Identity>a1b2c3</wbr:Identity><wbr:WBRegId>TTN-0011223344</wbr:WBRegId><wbr:EGAISFixNumber>FIX-1</wbr:EGAISFixNumber><wbr:EGAISFixDate>2026-10-20</wbr:EGAISFixDate><wbr:WBNUMBER>ТН-1045</wbr:WBNUMBER><wbr:WBDate>2026-10-20</wbr:WBDate>
+<wbr:Shipper><oref:UL><oref:ClientRegId>010000000001</oref:ClientRegId></oref:UL></wbr:Shipper></wbr:Header>
+<wbr:Content><wbr:Position><wbr:Identity>1</wbr:Identity><wbr:InformF2RegId>FB-1</wbr:InformF2RegId></wbr:Position></wbr:Content>
+</ns:TTNInformF2Reg></ns:Document></ns:Documents>

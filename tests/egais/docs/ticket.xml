@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ns:Documents Version="1.0" xmlns:ns="http://fsrar.ru/WEGAIS/WB_DOC_SINGLE_01" xmlns:tc="http://fsrar.ru/WEGAIS/Ticket">
+<ns:Owner><ns:FSRAR_ID>030000123456</ns:FSRAR_ID></ns:Owner>
+<ns:Document><ns:Ticket><tc:TicketDate>@@DATE@@</tc:TicketDate><tc:Identity/><tc:DocId>D</tc:DocId><tc:TransportId>@@ID@@</tc:TransportId><tc:RegID>@@REG@@</tc:RegID><tc:DocType>@@TYPE@@</tc:DocType>
+<tc:Result><tc:Conclusion>@@RESULT@@</tc:Conclusion><tc:ConclusionDate>@@DATE@@</tc:ConclusionDate><tc:Comments>@@COMMENT@@</tc:Comments></tc:Result>
+</ns:Ticket></ns:Document></ns:Documents>
