@@ -113,6 +113,7 @@
     var res = kid(t, 'Result'), op = kid(t, 'OperationResult');
     return {
       regId: ktext(t, 'RegID'),
+      transportId: ktext(t, 'TransportId'),
       docType: ktext(t, 'DocType'),
       date: ktext(t, 'TicketDate'),
       conclusion: ktext(res, 'Conclusion') || ktext(op, 'OperationResult'),
@@ -253,7 +254,7 @@
       status('wait', 'Отправляем запрос в ЕГАИС… ' + SENDING);
       busy(true);
       return postDoc('QueryNATTN', queryXml('QueryNATTN', 'КОД', st.fsrar)).then(function (rid) {
-        remember('QueryNATTN');
+        remember('QueryNATTN', { id: rid });
         status('ok', 'Запрос отправлен' + (rid ? ' (номер в УТМ: <code>' + esc(rid) + '</code>)' : '') + '. Через несколько минут нажмите «Загрузить из УТМ» — появится список неподтверждённых накладных.');
       });
     }).catch(function (e) {
@@ -276,8 +277,8 @@
       busy(true);
       return ensureFsrar().then(function () {
         return postDoc('QueryResendDoc', queryXml('QueryResendDoc', 'WBREGID', item.wbRegId));
-      }).then(function () {
-        remember('resend:' + item.wbRegId);
+      }).then(function (rid) {
+        remember('resend:' + item.wbRegId, { id: rid });
         status('ok', 'Запрос на накладную № ' + esc(item.number) + ' отправлен. Когда она придёт в УТМ (обычно за несколько минут), нажмите «Загрузить из УТМ».');
         render();
       });
@@ -365,6 +366,8 @@
       waybills.sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || (b.number || '').localeCompare(a.number || ''); });
       st.waybills = waybills;
       st.regs = regs;
+      tickets.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+      st.tickets = tickets;
       // самые свежие ответы
       nattn.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
       rests.sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
@@ -504,6 +507,7 @@
         (open ? details(w) : '') +
       '</div>';
     }).join('');
+    html += ticketsHtml();
     $('wb-list').innerHTML = html;
     Array.prototype.forEach.call(document.querySelectorAll('[data-act]'), function (b) {
       b.addEventListener('click', function (e) {
@@ -522,6 +526,26 @@
         render();
       });
     });
+  }
+
+  // Последние квитанции ЕГАИС — в том числе ответы на наши запросы
+  function ticketsHtml() {
+    var list = (st.tickets || []).slice(0, 10);
+    if (!list.length) return '';
+    var ours = {};
+    var m = sentMap();
+    Object.keys(m).forEach(function (k) { var v = m[k]; if (v && v.id) ours[String(v.id).toLowerCase()] = k; });
+    return '<details class="more-opts tickets" style="margin-top:14px"' + (list.some(function (t) { return ours[String(t.transportId).toLowerCase()]; }) ? ' open' : '') + '>' +
+      '<summary>Последние квитанции ЕГАИС (' + list.length + ' из ' + st.tickets.length + ')</summary>' +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Дата</th><th>Документ</th><th>Результат</th><th>Комментарий ЕГАИС</th></tr></thead><tbody>' +
+      list.map(function (t) {
+        var mine = ours[String(t.transportId).toLowerCase()];
+        var ok = /accept|успеш|подтвержд/i.test(t.conclusion), bad = /reject|отклон|ошиб|error/i.test(t.conclusion);
+        return '<tr' + (mine ? ' class="mine"' : '') + '><td>' + esc(fmtDate(t.date)) + ' ' + esc((t.date || '').slice(11, 16)) + '</td><td>' + esc(t.docType || '—') +
+          (t.operation ? '<div class="muted small">' + esc(t.operation) + '</div>' : '') + (mine ? '<div class="small"><b>ваш запрос</b></div>' : '') + '</td>' +
+          '<td>' + (t.conclusion ? '<span class="tag ' + (ok ? 'live' : bad ? 'bad' : 'soon') + '">' + esc(t.conclusion) + '</span>' : '') + '</td>' +
+          '<td class="small">' + esc(t.comment) + (t.regId ? '<div class="muted">' + esc(t.regId) + '</div>' : '') + '</td></tr>';
+      }).join('') + '</tbody></table></div></details>';
   }
 
   function nattnHtml() {
